@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube RAG Knowledge Base Creator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            display: flex;
+            height: 85vh;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: #f7f7f7;
+            padding: 30px;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 18px;
+            margin-top: 25px;
+        }
+
+        h3 {
+            color: #666;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .project-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .project-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .project-selector select {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .current-project {
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .current-project .label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .current-project .name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .index-section {
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button.success {
+            background: #28a745;
+        }
+
+        .status {
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        .chat-header {
+            padding: 20px 30px;
+            background: #f7f7f7;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message-content {
+            display: inline-block;
+            padding: 15px 20px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .sources {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        .source-link {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        .source-link:hover {
+            background: #f0f0f0;
+        }
+
+        .chat-input {
+            padding: 20px 30px;
+            background: #f7f7f7;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .chat-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .indexed-channels {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .channel-item {
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal h3 {
+            margin-bottom: 20px;
+        }
+
+        .modal input {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>📚 YouTube RAG Creator</h1>
+            
+            <div class="project-section">
+                <h3>Knowledge Base Project</h3>
+                <div class="current-project" id="currentProject">
+                    <div class="label">Current Project</div>
+                    <div class="name" id="currentProjectName">Default</div>
+                </div>
+                
+                <button onclick="showNewProjectModal()" style="width: 100%; margin-bottom: 10px;">
+                    ➕ Create New Knowledge Base
+                </button>
+                
+                <div class="project-selector">
+                    <select id="projectSelect" onchange="switchProject()">
+                        <option value="">Select a project...</option>
+                    </select>
+                    <button onclick="deleteCurrentProject()" class="danger">🗑️</button>
+                </div>
+            </div>
+            
+            <div class="index-section">
+                <h3>Add YouTube Channel</h3>
+                <div class="input-group">
+                    <input type="text" id="channelId" placeholder="Enter Channel ID">
+                    <button id="indexBtn" onclick="indexChannel()">Add</button>
+                </div>
+                <div id="indexStatus" class="status" style="display: none;"></div>
+                <div class="progress-bar" id="progressBar" style="display: none;">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <div class="stats" id="stats">
+                <strong>Knowledge Base Stats</strong>
+                <div id="statsContent">Loading...</div>
+                <div class="indexed-channels" id="indexedChannels"></div>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div class="chat-header">
+                <h2>💬 Chat with Your Knowledge Base</h2>
+                <p style="color: #666; margin-top: 5px;">Ask questions about any indexed YouTube channel</p>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message assistant">
+                    <div class="message-content">
+                        Welcome! Create or select a knowledge base project, then add YouTube channels to build your personal RAG system. Each project is a separate, persistent knowledge base you can access anytime.
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <div class="chat-input-group">
+                    <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="newProjectModal" class="modal">
+        <div class="modal-content">
+            <h3>Create New Knowledge Base</h3>
+            <input type="text" id="projectName" placeholder="Project Name (e.g., 'Tech Tutorials')">
+            <input type="text" id="projectDescription" placeholder="Description (optional)">
+            <div class="modal-buttons">
+                <button onclick="hideNewProjectModal()" class="secondary">Cancel</button>
+                <button onclick="createProject()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isIndexing = false;
+        let currentProject = null;
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                const data = await response.json();
+                
+                const select = document.getElementById('projectSelect');
+                select.innerHTML = '<option value="">Select a project...</option>';
+                
+                Object.entries(data.projects).forEach(([id, project]) => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = project.name;
+                    select.appendChild(option);
+                });
+                
+                if (data.currentProject) {
+                    currentProject = data.currentProject;
+                    document.getElementById('currentProjectName').textContent = 
+                        data.currentProject.name || 'Default';
+                    select.value = data.currentProject.id;
+                    loadStats();
+                }
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
+
+        function showNewProjectModal() {
+            document.getElementById('newProjectModal').style.display = 'flex';
+        }
+
+        function hideNewProjectModal() {
+            document.getElementById('newProjectModal').style.display = 'none';
+            document.getElementById('projectName').value = '';
+            document.getElementById('projectDescription').value = '';
+        }
+
+        async function createProject() {
+            const name = document.getElementById('projectName').value.trim();
+            const description = document.getElementById('projectDescription').value.trim();
+            
+            if (!name) {
+                alert('Please enter a project name');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create project');
+                }
+                
+                const project = await response.json();
+                hideNewProjectModal();
+                await loadProjects();
+                
+                // Add welcome message for new project
+                const messagesDiv = document.getElementById('chatMessages');
+                messagesDiv.innerHTML = `
+                    <div class="message assistant">
+                        <div class="message-content">
+                            Knowledge base "${name}" created! Start adding YouTube channels to build your RAG system.
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                alert('Error creating project: ' + error.message);
+            }
+        }
+
+        async function switchProject() {
+            const select = document.getElementById('projectSelect');
+            const projectId = select.value;
+            
+            if (!projectId) return;
+            
+            try {
+                const response = await fetch(`/api/projects/${projectId}/switch`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to switch project');
+                }
+                
+                await loadProjects();
+            } catch (error) {
+                alert('Error switching project: ' + error.message);
+            }
+        }
+
+        async function deleteCurrentProject() {
+            if (!currentProject) {
+                alert('No project selected');
+                return;
+            }
+            
+            if (!confirm(`Delete knowledge base "${currentProject.name}"? This will remove all indexed data.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/projects/${currentProject.id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to delete project');
+                }
+                
+                await loadProjects();
+            } catch (error) {
+                alert('Error deleting project: ' + error.message);
+            }
+        }
+
+        async function indexChannel() {
+            const channelId = document.getElementById('channelId').value.trim();
+            if (!channelId) {
+                alert('Please enter a channel ID');
+                return;
+            }
+
+            const btn = document.getElementById('indexBtn');
+            const status = document.getElementById('indexStatus');
+            const progressBar = document.getElementById('progressBar');
+            
+            btn.disabled = true;
+            isIndexing = true;
+            status.style.display = 'block';
+            status.className = 'status';
+            status.innerHTML = 'Starting indexing... <div class="loading"></div>';
+            progressBar.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/index-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId })
+                });
+
+                const data = await response.json();
+                
+                if (data.alreadyIndexed) {
+                    status.className = 'status success';
+                    status.textContent = 'Channel already in knowledge base!';
+                    btn.disabled = false;
+                    isIndexing = false;
+                    progressBar.style.display = 'none';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to start indexing');
+                }
+
+                // Poll for status
+                pollIndexingStatus();
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+                btn.disabled = false;
+                isIndexing = false;
+            }
+        }
+
+        async function pollIndexingStatus() {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/index-status');
+                    const data = await response.json();
+                    
+                    const status = document.getElementById('indexStatus');
+                    const progressFill = document.getElementById('progressFill');
+                    
+                    status.textContent = data.message;
+                    progressFill.style.width = data.progress + '%';
+                    
+                    if (!data.isIndexing) {
+                        clearInterval(interval);
+                        document.getElementById('indexBtn').disabled = false;
+                        isIndexing = false;
+                        
+                        if (data.progress === 100) {
+                            status.className = 'status success';
+                            loadStats();
+                        } else {
+                            status.className = 'status error';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling status:', error);
+                }
+            }, 2000);
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const question = input.value.trim();
+            
+            if (!question) return;
+            
+            const messagesDiv = document.getElementById('chatMessages');
+            
+            // Add user message
+            messagesDiv.innerHTML += `
+                <div class="message user">
+                    <div class="message-content">${question}</div>
+                </div>
+            `;
+            
+            input.value = '';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            // Add loading message
+            messagesDiv.innerHTML += `
+                <div class="message assistant" id="loadingMessage">
+                    <div class="message-content">
+                        Searching knowledge base... <div class="loading"></div>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                
+                const data = await response.json();
+                
+                // Remove loading message
+                document.getElementById('loadingMessage').remove();
+                
+                // Add assistant response
+                let sourcesHtml = '';
+                if (data.sources && data.sources.length > 0) {
+                    sourcesHtml = '<div class="sources">Sources: ';
+                    data.sources.forEach(source => {
+                        sourcesHtml += `<a href="${source.url}" target="_blank" class="source-link">${source.title}</a>`;
+                    });
+                    sourcesHtml += '</div>';
+                }
+                
+                messagesDiv.innerHTML += `
+                    <div class="message assistant">
+                        <div class="message-content">
+                            ${data.answer}
+                            ${sourcesHtml}
+                        </div>
+                    </div>
+                `;
+                
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) {
+                document.getElementById('loadingMessage').remove();
+                messagesDiv.innerHTML += `
+                    <div class="message assistant">
+                        <div class="message-content" style="background: #f8d7da; color: #721c24;">
+                            Error: Failed to get response. Please try again.
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                document.getElementById('statsContent').innerHTML = `
+                    <div>Total Vectors: ${data.vectorCount || 0}</div>
+                    <div>Channels Indexed: ${data.indexedChannels || 0}</div>
+                    <div>Total Videos: ${data.totalVideos || 0}</div>
+                    <div>Embedding Dimension: ${data.dimension || 3072}</div>
+                `;
+                
+                // Show indexed channels
+                if (data.channels && Object.keys(data.channels).length > 0) {
+                    let channelsHtml = '<div style="margin-top: 10px; font-weight: bold;">Indexed Channels:</div>';
+                    Object.values(data.channels).forEach(channel => {
+                        channelsHtml += `
+                            <div class="channel-item">
+                                ${channel.channelName} - ${channel.videoCount} videos
+                            </div>
+                        `;
+                    });
+                    document.getElementById('indexedChannels').innerHTML = channelsHtml;
+                } else {
+                    document.getElementById('indexedChannels').innerHTML = '';
+                }
+            } catch (error) {
+                document.getElementById('statsContent').textContent = 'Unable to load stats';
+            }
+        }
+
+        // Load projects and stats on page load
+        loadProjects();
+    </script>
+</body>
+</html>
