@@ -29,12 +29,13 @@ class ChannelManager {
     }
   }
 
-  async addChannel(channelId, channelInfo) {
+  async addChannel(channelId, channelInfo, projectId = null) {
     this.channels[channelId] = {
       ...channelInfo,
       indexedAt: new Date().toISOString(),
       videoCount: channelInfo.videoCount || 0,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      projectId: projectId
     };
     await this.saveChannels();
   }
@@ -54,8 +55,18 @@ class ChannelManager {
     return this.channels[channelId];
   }
 
-  getAllChannels() {
-    return this.channels;
+  getAllChannels(projectId = null) {
+    if (!projectId) {
+      return this.channels;
+    }
+    // Filter channels by project
+    const filtered = {};
+    for (const [id, channel] of Object.entries(this.channels)) {
+      if (channel.projectId === projectId) {
+        filtered[id] = channel;
+      }
+    }
+    return filtered;
   }
 
   async removeChannel(channelId) {
@@ -67,8 +78,9 @@ class ChannelManager {
     return !!this.channels[channelId];
   }
 
-  getTotalVideos() {
-    return Object.values(this.channels).reduce((sum, channel) => sum + (channel.videoCount || 0), 0);
+  getTotalVideos(projectId = null) {
+    const channels = projectId ? this.getAllChannels(projectId) : this.channels;
+    return Object.values(channels).reduce((sum, channel) => sum + (channel.videoCount || 0), 0);
   }
 }
 

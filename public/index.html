@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube RAG Knowledge Base Creator</title>
+    <title>YouTube RAG Knowledge Base - Advanced Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -15,98 +15,412 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             padding: 20px;
         }
 
-        .container {
-            width: 100%;
-            max-width: 1400px;
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
-            display: flex;
-            height: 85vh;
         }
 
-        .sidebar {
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .project-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .project-selector select {
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .project-selector button {
+            padding: 8px 15px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f7f7f7;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .tab:hover {
+            background: rgba(0,0,0,0.05);
+        }
+
+        .tab.active {
+            color: #667eea;
+            background: white;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+            min-height: 600px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Chat Tab Styles */
+        .chat-container {
+            display: flex;
+            height: 600px;
+            gap: 20px;
+        }
+
+        .chat-sidebar {
             width: 350px;
             background: #f7f7f7;
-            padding: 30px;
-            border-right: 1px solid #e0e0e0;
-            overflow-y: auto;
+            border-radius: 10px;
+            padding: 20px;
         }
 
-        .main-chat {
+        .chat-main {
             flex: 1;
             display: flex;
             flex-direction: column;
         }
 
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 22px;
-        }
-
-        h2 {
-            color: #555;
-            margin-bottom: 15px;
-            font-size: 18px;
-            margin-top: 25px;
-        }
-
-        h3 {
-            color: #666;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-
-        .project-section {
-            background: white;
-            padding: 15px;
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #fafafa;
             border-radius: 10px;
             margin-bottom: 20px;
         }
 
-        .project-selector {
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message-content {
+            display: inline-block;
+            padding: 15px 20px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .chat-input-group {
             display: flex;
             gap: 10px;
+        }
+
+        .chat-input-group input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        /* Channels Tab */
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .channel-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+
+        .channel-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .channel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 15px;
         }
 
-        .project-selector select {
+        .channel-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .channel-stats {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .channel-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+
+        .channel-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Videos Tab */
+        .videos-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            max-width: 500px;
+        }
+
+        .search-bar input {
             flex: 1;
             padding: 10px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
+        }
+
+        .video-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .filter-chip {
+            padding: 8px 15px;
+            background: #f0f0f0;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
             font-size: 14px;
         }
 
-        .current-project {
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            margin-bottom: 15px;
+        .filter-chip.active {
+            background: #667eea;
+            color: white;
         }
 
-        .current-project .label {
+        .videos-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .video-item {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .video-thumbnail {
+            width: 120px;
+            height: 68px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .video-info {
+            flex: 1;
+        }
+
+        .video-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .video-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .video-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .video-status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .video-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Logs Tab */
+        .logs-container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .logs-sidebar {
+            width: 300px;
+        }
+
+        .logs-main {
+            flex: 1;
+        }
+
+        .log-entry {
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .log-timestamp {
             font-size: 12px;
             color: #666;
             margin-bottom: 5px;
         }
 
-        .current-project .name {
-            font-size: 16px;
-            font-weight: 600;
+        .log-message {
+            font-size: 14px;
             color: #333;
         }
 
+        .log-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        /* Analytics Tab */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .stat-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            color: #28a745;
+            margin-top: 5px;
+        }
+
+        .chart-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            height: 400px;
+        }
+
+        /* Index Channel Section */
         .index-section {
+            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
             margin-bottom: 20px;
         }
 
@@ -116,18 +430,12 @@
             margin-bottom: 15px;
         }
 
-        input[type="text"] {
+        input[type="text"], input[type="number"], select {
             flex: 1;
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 14px;
-            transition: border-color 0.3s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
         }
 
         button {
@@ -170,6 +478,7 @@
             border-radius: 8px;
             font-size: 14px;
             color: #666;
+            margin-bottom: 10px;
         }
 
         .status.success {
@@ -195,114 +504,6 @@
             height: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             transition: width 0.3s;
-        }
-
-        .chat-header {
-            padding: 20px 30px;
-            background: #f7f7f7;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .chat-messages {
-            flex: 1;
-            padding: 30px;
-            overflow-y: auto;
-        }
-
-        .message {
-            margin-bottom: 20px;
-            animation: fadeIn 0.3s;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message.user {
-            text-align: right;
-        }
-
-        .message-content {
-            display: inline-block;
-            padding: 15px 20px;
-            border-radius: 15px;
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-
-        .message.user .message-content {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .message.assistant .message-content {
-            background: #f0f0f0;
-            color: #333;
-        }
-
-        .sources {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #ddd;
-        }
-
-        .source-link {
-            display: inline-block;
-            margin: 5px;
-            padding: 5px 10px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            color: #667eea;
-            text-decoration: none;
-            font-size: 12px;
-        }
-
-        .source-link:hover {
-            background: #f0f0f0;
-        }
-
-        .chat-input {
-            padding: 20px 30px;
-            background: #f7f7f7;
-            border-top: 1px solid #e0e0e0;
-        }
-
-        .chat-input-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .chat-input input {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-        }
-
-        .stats {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f0f0f0;
-            border-radius: 8px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .indexed-channels {
-            margin-top: 15px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .channel-item {
-            padding: 8px;
-            background: white;
-            border-radius: 5px;
-            margin-bottom: 5px;
-            font-size: 13px;
         }
 
         .loading {
@@ -339,87 +540,204 @@
             padding: 30px;
             border-radius: 15px;
             width: 90%;
-            max-width: 500px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
         .modal h3 {
             margin-bottom: 20px;
         }
 
-        .modal input {
-            width: 100%;
-            margin-bottom: 15px;
-        }
-
         .modal-buttons {
             display: flex;
             gap: 10px;
             justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .video-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .video-result.success {
+            background: #d4edda;
+        }
+
+        .video-result.failed {
+            background: #f8d7da;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .badge.success {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge.failed {
+            background: #dc3545;
+            color: white;
+        }
+
+        .badge.info {
+            background: #17a2b8;
+            color: white;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="sidebar">
-            <h1>📚 YouTube RAG Creator</h1>
-            
-            <div class="project-section">
-                <h3>Knowledge Base Project</h3>
-                <div class="current-project" id="currentProject">
-                    <div class="label">Current Project</div>
-                    <div class="name" id="currentProjectName">Default</div>
-                </div>
-                
-                <button onclick="showNewProjectModal()" style="width: 100%; margin-bottom: 10px;">
-                    ➕ Create New Knowledge Base
-                </button>
-                
-                <div class="project-selector">
-                    <select id="projectSelect" onchange="switchProject()">
-                        <option value="">Select a project...</option>
-                    </select>
-                    <button onclick="deleteCurrentProject()" class="danger">🗑️</button>
-                </div>
-            </div>
-            
-            <div class="index-section">
-                <h3>Add YouTube Channel</h3>
-                <div class="input-group">
-                    <input type="text" id="channelId" placeholder="Enter Channel ID">
-                    <button id="indexBtn" onclick="indexChannel()">Add</button>
-                </div>
-                <div id="indexStatus" class="status" style="display: none;"></div>
-                <div class="progress-bar" id="progressBar" style="display: none;">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-            </div>
-
-            <div class="stats" id="stats">
-                <strong>Knowledge Base Stats</strong>
-                <div id="statsContent">Loading...</div>
-                <div class="indexed-channels" id="indexedChannels"></div>
+    <div class="main-container">
+        <div class="header">
+            <h1>📚 YouTube RAG Knowledge Base</h1>
+            <div class="project-selector">
+                <select id="projectSelect" onchange="switchProject()">
+                    <option value="">Select Project...</option>
+                </select>
+                <button onclick="showNewProjectModal()">➕ New Project</button>
+                <button onclick="deleteCurrentProject()" class="danger">🗑️</button>
             </div>
         </div>
 
-        <div class="main-chat">
-            <div class="chat-header">
-                <h2>💬 Chat with Your Knowledge Base</h2>
-                <p style="color: #666; margin-top: 5px;">Ask questions about any indexed YouTube channel</p>
-            </div>
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('chat')">💬 Chat</button>
+            <button class="tab" onclick="switchTab('channels')">📺 Channels</button>
+            <button class="tab" onclick="switchTab('videos')">🎬 Videos</button>
+            <button class="tab" onclick="switchTab('logs')">📝 Logs</button>
+            <button class="tab" onclick="switchTab('analytics')">📊 Analytics</button>
+        </div>
 
-            <div class="chat-messages" id="chatMessages">
-                <div class="message assistant">
-                    <div class="message-content">
-                        Welcome! Create or select a knowledge base project, then add YouTube channels to build your personal RAG system. Each project is a separate, persistent knowledge base you can access anytime.
+        <!-- Chat Tab -->
+        <div id="chat-tab" class="tab-content active">
+            <div class="chat-container">
+                <div class="chat-sidebar">
+                    <div class="index-section">
+                        <h3>Add YouTube Channel</h3>
+                        <div class="input-group">
+                            <input type="text" id="channelId" placeholder="Channel URL or ID">
+                        </div>
+                        <div class="input-group">
+                            <input type="number" id="videoLimit" placeholder="Videos to process (empty = ALL)" min="1">
+                        </div>
+                        <div class="input-group">
+                            <button id="indexBtn" onclick="indexChannel()">Add Channel</button>
+                            <button id="cancelBtn" onclick="cancelIndexing()" class="danger" style="display: none;">Cancel</button>
+                        </div>
+                        <div id="indexStatus" class="status" style="display: none;"></div>
+                        <div id="progressDetails" style="display: none; margin-top: 10px; font-size: 12px; color: #666;"></div>
+                        <div class="progress-bar" id="progressBar" style="display: none;">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+                    <div id="quickStats" style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+                        <strong>Knowledge Base Stats</strong>
+                        <div id="statsContent" style="margin-top: 10px; font-size: 14px;">Loading...</div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #e8f4f8; border: 1px solid #17a2b8; border-radius: 8px;">
+                        <strong>🔄 Auto-Refresh New Videos</strong>
+                        <div style="margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="autoRefreshToggle" onchange="toggleAutoRefresh()" style="width: 20px; height: 20px;">
+                                <span>Check for new videos daily</span>
+                            </label>
+                            <button onclick="checkNewVideosNow()" style="margin-top: 10px; width: 100%;" class="secondary">
+                                Check for New Videos Now
+                            </button>
+                            <div id="lastCheckTime" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-main">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message assistant">
+                            <div class="message-content">
+                                Welcome! I can answer questions about your indexed YouTube channels. Add a channel to get started!
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-group">
+                        <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
+                        <button onclick="sendMessage()">Send</button>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="chat-input">
-                <div class="chat-input-group">
-                    <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
-                    <button onclick="sendMessage()">Send</button>
+        <!-- Channels Tab -->
+        <div id="channels-tab" class="tab-content">
+            <h2>Indexed Channels</h2>
+            <div class="channels-grid" id="channelsGrid">
+                <!-- Channels will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Videos Tab -->
+        <div id="videos-tab" class="tab-content">
+            <div class="videos-header">
+                <h2>Indexed Videos</h2>
+                <div class="search-bar">
+                    <input type="text" placeholder="Search videos..." id="videoSearch" onkeyup="filterVideos()">
+                    <button onclick="filterVideos()">Search</button>
                 </div>
+            </div>
+            <div class="video-filters">
+                <button class="filter-chip active" onclick="filterByStatus('all')">All Videos</button>
+                <button class="filter-chip" onclick="filterByStatus('success')">Successfully Indexed</button>
+                <button class="filter-chip" onclick="filterByStatus('failed')">Failed</button>
+            </div>
+            <div class="videos-list" id="videosList">
+                <!-- Videos will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="logs-tab" class="tab-content">
+            <h2>Indexing Logs</h2>
+            <div class="logs-container">
+                <div class="logs-main" id="logsContainer">
+                    <!-- Logs will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div id="analytics-tab" class="tab-content">
+            <h2>Knowledge Base Analytics</h2>
+            <div class="analytics-grid">
+                <div class="stat-card">
+                    <div class="stat-title">Total Channels</div>
+                    <div class="stat-value" id="totalChannels">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Videos Indexed</div>
+                    <div class="stat-value" id="totalVideos">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Success Rate</div>
+                    <div class="stat-value" id="successRate">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Total Chunks</div>
+                    <div class="stat-value" id="totalChunks">0</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="analyticsChart"></canvas>
             </div>
         </div>
     </div>
@@ -428,8 +746,8 @@
     <div id="newProjectModal" class="modal">
         <div class="modal-content">
             <h3>Create New Knowledge Base</h3>
-            <input type="text" id="projectName" placeholder="Project Name (e.g., 'Tech Tutorials')">
-            <input type="text" id="projectDescription" placeholder="Description (optional)">
+            <input type="text" id="projectName" placeholder="Project Name" style="width: 100%; margin-bottom: 15px;">
+            <input type="text" id="projectDescription" placeholder="Description (optional)" style="width: 100%; margin-bottom: 15px;">
             <div class="modal-buttons">
                 <button onclick="hideNewProjectModal()" class="secondary">Cancel</button>
                 <button onclick="createProject()">Create</button>
@@ -437,17 +755,52 @@
         </div>
     </div>
 
+    <!-- Indexing Results Modal -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content">
+            <h3>Indexing Results</h3>
+            <div id="resultsContent"></div>
+            <div class="modal-buttons">
+                <button onclick="hideResultsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let isIndexing = false;
         let currentProject = null;
+        let allVideos = [];
+        let indexingLogs = [];
+        let currentFilter = 'all';
 
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Load tab-specific data
+            if (tabName === 'channels') {
+                loadChannels();
+            } else if (tabName === 'videos') {
+                loadVideos();
+            } else if (tabName === 'logs') {
+                loadLogs();
+            } else if (tabName === 'analytics') {
+                loadAnalytics();
+            }
+        }
+
+        // Project management
         async function loadProjects() {
             try {
                 const response = await fetch('/api/projects');
                 const data = await response.json();
                 
                 const select = document.getElementById('projectSelect');
-                select.innerHTML = '<option value="">Select a project...</option>';
+                select.innerHTML = '<option value="">Select Project...</option>';
                 
                 Object.entries(data.projects).forEach(([id, project]) => {
                     const option = document.createElement('option');
@@ -458,8 +811,6 @@
                 
                 if (data.currentProject) {
                     currentProject = data.currentProject;
-                    document.getElementById('currentProjectName').textContent = 
-                        data.currentProject.name || 'Default';
                     select.value = data.currentProject.id;
                     loadStats();
                 }
@@ -474,8 +825,6 @@
 
         function hideNewProjectModal() {
             document.getElementById('newProjectModal').style.display = 'none';
-            document.getElementById('projectName').value = '';
-            document.getElementById('projectDescription').value = '';
         }
 
         async function createProject() {
@@ -494,23 +843,10 @@
                     body: JSON.stringify({ name, description })
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to create project');
-                }
+                if (!response.ok) throw new Error('Failed to create project');
                 
-                const project = await response.json();
                 hideNewProjectModal();
                 await loadProjects();
-                
-                // Add welcome message for new project
-                const messagesDiv = document.getElementById('chatMessages');
-                messagesDiv.innerHTML = `
-                    <div class="message assistant">
-                        <div class="message-content">
-                            Knowledge base "${name}" created! Start adding YouTube channels to build your RAG system.
-                        </div>
-                    </div>
-                `;
             } catch (error) {
                 alert('Error creating project: ' + error.message);
             }
@@ -527,11 +863,10 @@
                     method: 'POST'
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to switch project');
-                }
+                if (!response.ok) throw new Error('Failed to switch project');
                 
                 await loadProjects();
+                loadStats();
             } catch (error) {
                 alert('Error switching project: ' + error.message);
             }
@@ -543,18 +878,14 @@
                 return;
             }
             
-            if (!confirm(`Delete knowledge base "${currentProject.name}"? This will remove all indexed data.`)) {
-                return;
-            }
+            if (!confirm(`Delete "${currentProject.name}"?`)) return;
             
             try {
                 const response = await fetch(`/api/projects/${currentProject.id}`, {
                     method: 'DELETE'
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to delete project');
-                }
+                if (!response.ok) throw new Error('Failed to delete project');
                 
                 await loadProjects();
             } catch (error) {
@@ -562,20 +893,53 @@
             }
         }
 
+        // Channel indexing
+        function extractChannelId(input) {
+            if (input.includes('youtube.com') || input.includes('youtu.be')) {
+                const channelMatch = input.match(/\/channel\/([a-zA-Z0-9_-]+)/);
+                if (channelMatch) return { id: channelMatch[1], type: 'channel' };
+                
+                const handleMatch = input.match(/\/@([a-zA-Z0-9_.-]+)/);
+                if (handleMatch) return { id: handleMatch[1], type: 'handle' };
+                
+                const customMatch = input.match(/\/c\/([a-zA-Z0-9_-]+)/);
+                if (customMatch) return { id: customMatch[1], type: 'custom' };
+                
+                const userMatch = input.match(/\/user\/([a-zA-Z0-9_-]+)/);
+                if (userMatch) return { id: userMatch[1], type: 'user' };
+            }
+            
+            if (input.startsWith('UC') && input.length === 24) {
+                return { id: input, type: 'channel' };
+            }
+            
+            return { id: input, type: 'unknown' };
+        }
+
         async function indexChannel() {
-            const channelId = document.getElementById('channelId').value.trim();
-            if (!channelId) {
-                alert('Please enter a channel ID');
+            const channelInput = document.getElementById('channelId').value.trim();
+            const videoLimitInput = document.getElementById('videoLimit').value.trim();
+            
+            if (!channelInput) {
+                alert('Please enter a channel URL or ID');
                 return;
             }
-
+            
+            const channelInfo = extractChannelId(channelInput);
+            const channelId = channelInfo.id;
+            const videoLimit = videoLimitInput ? parseInt(videoLimitInput) : null;
+            
             const btn = document.getElementById('indexBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
             const status = document.getElementById('indexStatus');
             const progressBar = document.getElementById('progressBar');
+            const progressDetails = document.getElementById('progressDetails');
             
             btn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
             isIndexing = true;
             status.style.display = 'block';
+            progressDetails.style.display = 'block';
             status.className = 'status';
             status.innerHTML = 'Starting indexing... <div class="loading"></div>';
             progressBar.style.display = 'block';
@@ -584,7 +948,7 @@
                 const response = await fetch('/api/index-channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ channelId })
+                    body: JSON.stringify({ channelId, videoLimit })
                 });
 
                 const data = await response.json();
@@ -602,7 +966,6 @@
                     throw new Error(data.error || 'Failed to start indexing');
                 }
 
-                // Poll for status
                 pollIndexingStatus();
             } catch (error) {
                 status.className = 'status error';
@@ -620,18 +983,38 @@
                     
                     const status = document.getElementById('indexStatus');
                     const progressFill = document.getElementById('progressFill');
+                    const progressDetails = document.getElementById('progressDetails');
+                    const cancelBtn = document.getElementById('cancelBtn');
                     
                     status.textContent = data.message;
                     progressFill.style.width = data.progress + '%';
                     
+                    if (data.totalVideos > 0) {
+                        progressDetails.innerHTML = `
+                            <strong>Progress:</strong> ${data.processedVideos || 0} / ${data.totalVideos} videos processed (${data.progress}%)<br>
+                            <strong>Success:</strong> ${data.successVideos?.length || 0} videos indexed<br>
+                            <strong>Failed:</strong> ${data.failedVideos?.length || 0} videos skipped
+                        `;
+                    }
+                    
                     if (!data.isIndexing) {
                         clearInterval(interval);
                         document.getElementById('indexBtn').disabled = false;
+                        document.getElementById('cancelBtn').style.display = 'none';
                         isIndexing = false;
                         
                         if (data.progress === 100) {
                             status.className = 'status success';
                             loadStats();
+                            
+                            // Show results modal
+                            if (data.successVideos || data.failedVideos) {
+                                showResultsModal(data);
+                            }
+                        } else if (data.cancelled) {
+                            status.className = 'status';
+                            status.textContent = 'Indexing cancelled';
+                            progressDetails.style.display = 'none';
                         } else {
                             status.className = 'status error';
                         }
@@ -642,6 +1025,289 @@
             }, 2000);
         }
 
+        async function cancelIndexing() {
+            try {
+                const response = await fetch('/api/cancel-indexing', {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    console.log(error.error);
+                }
+            } catch (error) {
+                console.error('Error cancelling indexing:', error);
+            }
+        }
+
+        function showResultsModal(data) {
+            const modal = document.getElementById('resultsModal');
+            const content = document.getElementById('resultsContent');
+            
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <strong>Indexing Complete!</strong><br>
+                    Successfully indexed: ${data.successVideos?.length || 0} videos<br>
+                    Failed: ${data.failedVideos?.length || 0} videos
+                </div>
+            `;
+            
+            if (data.successVideos && data.successVideos.length > 0) {
+                html += '<h4>✅ Successfully Indexed:</h4>';
+                data.successVideos.forEach(video => {
+                    html += `
+                        <div class="video-result success">
+                            <span>${video.title}</span>
+                            <span class="badge success">${video.chunksCreated} chunks</span>
+                        </div>
+                    `;
+                });
+            }
+            
+            if (data.failedVideos && data.failedVideos.length > 0) {
+                html += '<h4 style="margin-top: 20px;">❌ Failed to Index:</h4>';
+                data.failedVideos.forEach(video => {
+                    html += `
+                        <div class="video-result failed">
+                            <span>${video.title}</span>
+                            <span class="badge failed">${video.reason || 'No transcript'}</span>
+                        </div>
+                    `;
+                });
+            }
+            
+            content.innerHTML = html;
+            modal.style.display = 'flex';
+        }
+
+        function hideResultsModal() {
+            document.getElementById('resultsModal').style.display = 'none';
+        }
+
+        // Load channels
+        async function loadChannels() {
+            try {
+                const response = await fetch('/api/channels');
+                const channels = await response.json();
+                
+                const grid = document.getElementById('channelsGrid');
+                
+                if (Object.keys(channels).length === 0) {
+                    grid.innerHTML = '<p>No channels indexed yet</p>';
+                    return;
+                }
+                
+                grid.innerHTML = '';
+                Object.values(channels).forEach(channel => {
+                    const card = document.createElement('div');
+                    card.className = 'channel-card';
+                    card.innerHTML = `
+                        <div class="channel-header">
+                            <div class="channel-name">${channel.channelName}</div>
+                            <span class="badge info">${channel.channelId.substring(0, 8)}...</span>
+                        </div>
+                        <div class="channel-stats">
+                            <div class="channel-stat">
+                                <span>Videos Indexed:</span>
+                                <strong>${channel.videoCount}</strong>
+                            </div>
+                            <div class="channel-stat">
+                                <span>Total Chunks:</span>
+                                <strong>${channel.totalChunks || 0}</strong>
+                            </div>
+                            <div class="channel-stat">
+                                <span>Indexed At:</span>
+                                <strong>${new Date(channel.indexedAt).toLocaleDateString()}</strong>
+                            </div>
+                        </div>
+                        <div class="channel-actions">
+                            <button onclick="viewChannelVideos('${channel.channelId}')">View Videos</button>
+                            <button onclick="deleteChannel('${channel.channelId}')" class="danger">Delete</button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading channels:', error);
+            }
+        }
+
+        // Load videos
+        async function loadVideos() {
+            try {
+                const logsResponse = await fetch('/api/logs');
+                const logs = await logsResponse.json();
+                
+                allVideos = [];
+                logs.forEach(log => {
+                    if (log.successVideos) {
+                        log.successVideos.forEach(video => {
+                            allVideos.push({ ...video, status: 'success', channelName: log.channelName });
+                        });
+                    }
+                    if (log.failedVideos) {
+                        log.failedVideos.forEach(video => {
+                            allVideos.push({ ...video, status: 'failed', channelName: log.channelName });
+                        });
+                    }
+                });
+                
+                displayVideos(allVideos);
+            } catch (error) {
+                console.error('Error loading videos:', error);
+            }
+        }
+
+        function displayVideos(videos) {
+            const list = document.getElementById('videosList');
+            
+            if (videos.length === 0) {
+                list.innerHTML = '<p>No videos found</p>';
+                return;
+            }
+            
+            list.innerHTML = '';
+            videos.forEach(video => {
+                const item = document.createElement('div');
+                item.className = 'video-item';
+                item.innerHTML = `
+                    <div class="video-info">
+                        <div class="video-title">${video.title}</div>
+                        <div class="video-meta">
+                            Channel: ${video.channelName || 'Unknown'} | 
+                            Views: ${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'} |
+                            Duration: ${video.duration || 'N/A'}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="video-status ${video.status}">${video.status === 'success' ? 'Indexed' : 'Failed'}</span>
+                        ${video.status === 'success' ? `<span class="badge info">${video.chunksCreated || 0} chunks</span>` : ''}
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function filterVideos() {
+            const searchTerm = document.getElementById('videoSearch').value.toLowerCase();
+            const filtered = allVideos.filter(video => {
+                const matchesSearch = video.title.toLowerCase().includes(searchTerm);
+                const matchesStatus = currentFilter === 'all' || video.status === currentFilter;
+                return matchesSearch && matchesStatus;
+            });
+            displayVideos(filtered);
+        }
+
+        function filterByStatus(status) {
+            currentFilter = status;
+            document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+            event.target.classList.add('active');
+            filterVideos();
+        }
+
+        // Load logs
+        async function loadLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const logs = await response.json();
+                
+                const container = document.getElementById('logsContainer');
+                
+                if (logs.length === 0) {
+                    container.innerHTML = '<p>No indexing logs yet</p>';
+                    return;
+                }
+                
+                container.innerHTML = '';
+                logs.reverse().forEach(log => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.innerHTML = `
+                        <div class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</div>
+                        <div class="log-message">
+                            <strong>${log.channelName}</strong> - 
+                            ${log.successCount} videos indexed, ${log.failedCount} failed
+                        </div>
+                        <div class="log-details">
+                            <div>Total Videos: ${log.totalVideos}</div>
+                            <div>Duration: ${Math.round(log.duration / 1000)}s</div>
+                            <div>Success Rate: ${Math.round((log.successCount / log.totalVideos) * 100)}%</div>
+                        </div>
+                    `;
+                    container.appendChild(entry);
+                });
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        // Load analytics
+        async function loadAnalytics() {
+            try {
+                const [statsResponse, logsResponse] = await Promise.all([
+                    fetch('/api/stats'),
+                    fetch('/api/logs')
+                ]);
+                
+                const stats = await statsResponse.json();
+                const logs = await logsResponse.json();
+                
+                // Update stat cards
+                document.getElementById('totalChannels').textContent = Object.keys(stats.channels || {}).length;
+                document.getElementById('totalVideos').textContent = stats.totalVideos || 0;
+                document.getElementById('totalChunks').textContent = stats.vectorCount || 0;
+                
+                // Calculate success rate
+                let totalSuccess = 0, totalAttempts = 0;
+                logs.forEach(log => {
+                    totalSuccess += log.successCount;
+                    totalAttempts += log.totalVideos;
+                });
+                const successRate = totalAttempts > 0 ? Math.round((totalSuccess / totalAttempts) * 100) : 0;
+                document.getElementById('successRate').textContent = successRate + '%';
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+            }
+        }
+
+        // View channel videos
+        async function viewChannelVideos(channelId) {
+            try {
+                const response = await fetch(`/api/channels/${channelId}/videos`);
+                const data = await response.json();
+                
+                // Switch to videos tab and filter by this channel
+                switchTab('videos');
+                // You could add additional filtering here
+            } catch (error) {
+                console.error('Error loading channel videos:', error);
+            }
+        }
+
+        // Delete channel
+        async function deleteChannel(channelId) {
+            if (!confirm('Delete this channel from the knowledge base?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/channels/${channelId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to delete channel');
+                }
+                
+                loadChannels();
+                loadStats();
+            } catch (error) {
+                alert('Error deleting channel: ' + error.message);
+            }
+        }
+
+        // Chat functionality
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const question = input.value.trim();
@@ -650,7 +1316,6 @@
             
             const messagesDiv = document.getElementById('chatMessages');
             
-            // Add user message
             messagesDiv.innerHTML += `
                 <div class="message user">
                     <div class="message-content">${question}</div>
@@ -660,7 +1325,6 @@
             input.value = '';
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Add loading message
             messagesDiv.innerHTML += `
                 <div class="message assistant" id="loadingMessage">
                     <div class="message-content">
@@ -678,15 +1342,13 @@
                 
                 const data = await response.json();
                 
-                // Remove loading message
                 document.getElementById('loadingMessage').remove();
                 
-                // Add assistant response
                 let sourcesHtml = '';
                 if (data.sources && data.sources.length > 0) {
-                    sourcesHtml = '<div class="sources">Sources: ';
+                    sourcesHtml = '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">Sources: ';
                     data.sources.forEach(source => {
-                        sourcesHtml += `<a href="${source.url}" target="_blank" class="source-link">${source.title}</a>`;
+                        sourcesHtml += `<a href="${source.url}" target="_blank" style="margin-right: 10px; color: #667eea;">${source.title}</a>`;
                     });
                     sourcesHtml += '</div>';
                 }
@@ -719,6 +1381,7 @@
             }
         }
 
+        // Load stats
         async function loadStats() {
             try {
                 const response = await fetch('/api/stats');
@@ -726,32 +1389,80 @@
                 
                 document.getElementById('statsContent').innerHTML = `
                     <div>Total Vectors: ${data.vectorCount || 0}</div>
-                    <div>Channels Indexed: ${data.indexedChannels || 0}</div>
-                    <div>Total Videos: ${data.totalVideos || 0}</div>
-                    <div>Embedding Dimension: ${data.dimension || 3072}</div>
+                    <div>Channels: ${data.indexedChannels || 0}</div>
+                    <div>Videos: ${data.totalVideos || 0}</div>
                 `;
-                
-                // Show indexed channels
-                if (data.channels && Object.keys(data.channels).length > 0) {
-                    let channelsHtml = '<div style="margin-top: 10px; font-weight: bold;">Indexed Channels:</div>';
-                    Object.values(data.channels).forEach(channel => {
-                        channelsHtml += `
-                            <div class="channel-item">
-                                ${channel.channelName} - ${channel.videoCount} videos
-                            </div>
-                        `;
-                    });
-                    document.getElementById('indexedChannels').innerHTML = channelsHtml;
-                } else {
-                    document.getElementById('indexedChannels').innerHTML = '';
-                }
             } catch (error) {
                 document.getElementById('statsContent').textContent = 'Unable to load stats';
             }
         }
 
-        // Load projects and stats on page load
+        // Auto-refresh functions
+        async function loadAutoRefreshSettings() {
+            try {
+                const response = await fetch('/api/auto-refresh');
+                const settings = await response.json();
+                
+                document.getElementById('autoRefreshToggle').checked = settings.enabled;
+                
+                if (settings.lastCheck) {
+                    document.getElementById('lastCheckTime').textContent = 
+                        `Last checked: ${new Date(settings.lastCheck).toLocaleString()}`;
+                } else {
+                    document.getElementById('lastCheckTime').textContent = 'Never checked';
+                }
+            } catch (error) {
+                console.error('Error loading auto-refresh settings:', error);
+            }
+        }
+        
+        async function toggleAutoRefresh() {
+            const enabled = document.getElementById('autoRefreshToggle').checked;
+            
+            try {
+                const response = await fetch('/api/auto-refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+                
+                const settings = await response.json();
+                
+                if (settings.enabled) {
+                    alert('Auto-refresh enabled! Will check for new videos every 24 hours.');
+                } else {
+                    alert('Auto-refresh disabled.');
+                }
+            } catch (error) {
+                console.error('Error toggling auto-refresh:', error);
+            }
+        }
+        
+        async function checkNewVideosNow() {
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Checking...';
+            
+            try {
+                const response = await fetch('/api/check-new-videos', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                alert('Check complete! ' + (result.message || 'No new videos found.'));
+                loadAutoRefreshSettings();
+            } catch (error) {
+                alert('Error checking for new videos: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Check for New Videos Now';
+            }
+        }
+        
+        // Initialize
         loadProjects();
+        loadAutoRefreshSettings();
     </script>
 </body>
 </html>

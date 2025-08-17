@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs').promises;
 const config = require('../config');
 const YouTubeService = require('../services/youtube');
 const EmbeddingService = require('../services/embeddings');
@@ -45,19 +46,53 @@ const initializeServices = async () => {
 // Initialize services before starting server
 initializeServices().catch(console.error);
 
-// Store indexing status
+// Store indexing status and logs
 let indexingStatus = {
   isIndexing: false,
   progress: 0,
   message: '',
-  channelId: null
+  channelId: null,
+  totalVideos: 0,
+  processedVideos: 0,
+  cancelled: false,
+  successVideos: [],
+  failedVideos: [],
+  startTime: null,
+  endTime: null
 };
+
+// Store all indexing logs
+let indexingLogs = [];
+const logsFile = path.join(__dirname, '../../data/indexing_logs.json');
+
+// Load logs from file
+async function loadLogs() {
+  try {
+    const data = await fs.readFile(logsFile, 'utf8');
+    indexingLogs = JSON.parse(data);
+  } catch (error) {
+    // File doesn't exist yet
+    indexingLogs = [];
+  }
+}
+
+// Save logs to file
+async function saveLogs() {
+  try {
+    await fs.writeFile(logsFile, JSON.stringify(indexingLogs, null, 2));
+  } catch (error) {
+    console.error('Error saving logs:', error);
+  }
+}
+
+// Load logs on startup
+loadLogs();
 
 // Routes
 
 // Index a YouTube channel (adds to existing knowledge base)
 app.post('/api/index-channel', async (req, res) => {
-  const { channelId } = req.body;
+  const { channelId, videoLimit } = req.body;
   
   if (!channelId) {
     return res.status(400).json({ error: 'Channel ID is required' });
@@ -76,12 +111,19 @@ app.post('/api/index-channel', async (req, res) => {
     });
   }
   
-  // Start indexing in background
+  // Start indexing in background - ensure arrays are initialized
   indexingStatus = {
     isIndexing: true,
     progress: 0,
     message: 'Starting indexing process...',
-    channelId
+    channelId,
+    totalVideos: 0,
+    processedVideos: 0,
+    cancelled: false,
+    successVideos: [],
+    failedVideos: [],
+    startTime: null,
+    endTime: null
   };
   
   res.json({ message: 'Indexing started', channelId });
@@ -89,23 +131,83 @@ app.post('/api/index-channel', async (req, res) => {
   // Background indexing process
   (async () => {
     try {
-      // Fetch transcripts
+      // Fetch transcripts with custom limit or all videos
       indexingStatus.message = 'Fetching channel videos...';
-      const transcripts = await youtubeService.getChannelTranscripts(channelId);
-      indexingStatus.progress = 30;
+      indexingStatus.startTime = new Date().toISOString();
+      const result = await youtubeService.getChannelTranscripts(channelId, videoLimit);
+      const { channelInfo, transcripts, failed, totalVideos, processedVideos } = result;
+      
+      indexingStatus.totalVideos = processedVideos;
+      // Add initial failed videos (no transcript available)
+      if (failed && failed.length > 0) {
+        indexingStatus.failedVideos = [...failed];
+      }
+      indexingStatus.progress = 20;
       
       if (transcripts.length === 0) {
-        throw new Error('No transcripts found for this channel');
+        const errorMsg = failed && failed.length > 0 
+          ? `No transcripts could be retrieved for any of the ${failed.length} videos from this channel. This may be due to: 1) Videos have disabled captions, 2) Channel uses members-only content, 3) Videos are age-restricted, or 4) Technical issues with caption APIs.`
+          : 'No transcripts found for this channel. The channel may not have any videos or all videos have disabled captions.';
+        throw new Error(errorMsg);
       }
       
-      // Get channel name from first video
-      const channelName = transcripts[0].title ? 
-        transcripts[0].title.split(' - ')[0] || channelId : 
-        channelId;
+      // Use actual channel name from YouTube API
+      const channelName = channelInfo.name;
       
-      // Process embeddings
+      // Process embeddings with progress tracking
       indexingStatus.message = `Processing ${transcripts.length} videos...`;
-      const embeddings = await embeddingService.processChannelTranscripts(transcripts);
+      const embeddings = [];
+      
+      for (let i = 0; i < transcripts.length; i++) {
+        // Check if cancelled
+        if (indexingStatus.cancelled) {
+          throw new Error('Indexing cancelled by user');
+        }
+        
+        const video = transcripts[i];
+        indexingStatus.message = `Processing video ${i + 1}/${transcripts.length}: ${video.title}`;
+        indexingStatus.processedVideos = i + 1;
+        indexingStatus.progress = 20 + Math.floor((i / transcripts.length) * 50);
+        
+        try {
+          // Make sure video has transcript property
+          if (!video.transcript) {
+            console.warn(`Video ${video.videoId} has no transcript content`);
+            indexingStatus.failedVideos.push({
+              videoId: video.videoId,
+              title: video.title,
+              url: video.url,
+              reason: 'No transcript content'
+            });
+            continue;
+          }
+          
+          const chunks = await embeddingService.processVideo(video);
+          embeddings.push(...chunks);
+          
+          // Track successful video
+          indexingStatus.successVideos.push({
+            videoId: video.videoId,
+            title: video.title,
+            url: video.url,
+            duration: video.metadata?.duration,
+            viewCount: video.metadata?.viewCount,
+            chunksCreated: chunks.length
+          });
+        } catch (error) {
+          console.error(`Error processing video ${video.videoId}:`, error);
+          indexingStatus.failedVideos.push({
+            videoId: video.videoId,
+            title: video.title,
+            url: video.url,
+            reason: error.message
+          });
+        }
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
       indexingStatus.progress = 70;
       
       // Index to vector store (ADDS to existing data)
@@ -113,27 +215,45 @@ app.post('/api/index-channel', async (req, res) => {
       await vectorStore.indexChannel(embeddings);
       indexingStatus.progress = 100;
       
-      // Save channel info
-      await channelManager.addChannel(channelId, {
-        channelId,
+      // Save channel info with project ID (use resolved channel ID)
+      const currentProject = upstashManager.getCurrentProject();
+      const resolvedChannelId = channelInfo.id || channelId;
+      await channelManager.addChannel(resolvedChannelId, {
+        channelId: resolvedChannelId,
         channelName,
         videoCount: transcripts.length,
         totalChunks: embeddings.length
-      });
+      }, currentProject?.id);
       
-      indexingStatus = {
-        isIndexing: false,
-        progress: 100,
-        message: `Successfully added ${transcripts.length} videos to knowledge base!`,
-        channelId
+      indexingStatus.endTime = new Date().toISOString();
+      indexingStatus.isIndexing = false;
+      indexingStatus.progress = 100;
+      indexingStatus.message = `Successfully indexed ${indexingStatus.successVideos.length} videos, ${indexingStatus.failedVideos.length} failed`;
+      
+      // Save to logs
+      const logEntry = {
+        timestamp: indexingStatus.startTime,
+        channelId: resolvedChannelId,
+        channelName,
+        totalVideos: processedVideos,
+        successCount: indexingStatus.successVideos.length,
+        failedCount: indexingStatus.failedVideos.length,
+        duration: Date.now() - new Date(indexingStatus.startTime).getTime(),
+        successVideos: [...indexingStatus.successVideos],
+        failedVideos: [...indexingStatus.failedVideos]
       };
+      indexingLogs.push(logEntry);
+      await saveLogs();
     } catch (error) {
       console.error('Indexing error:', error);
       indexingStatus = {
         isIndexing: false,
         progress: 0,
         message: `Error: ${error.message}`,
-        channelId
+        channelId,
+        totalVideos: 0,
+        processedVideos: 0,
+        cancelled: indexingStatus.cancelled
       };
     }
   })();
@@ -142,6 +262,17 @@ app.post('/api/index-channel', async (req, res) => {
 // Get indexing status
 app.get('/api/index-status', (req, res) => {
   res.json(indexingStatus);
+});
+
+// Cancel indexing
+app.post('/api/cancel-indexing', (req, res) => {
+  if (indexingStatus.isIndexing) {
+    indexingStatus.cancelled = true;
+    indexingStatus.message = 'Cancelling indexing...';
+    res.json({ success: true, message: 'Indexing cancellation requested' });
+  } else {
+    res.status(400).json({ error: 'No indexing in progress' });
+  }
 });
 
 // Query the RAG system
@@ -182,8 +313,9 @@ app.post('/api/chat', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
   try {
     const stats = await vectorStore.getStats();
-    const channels = channelManager.getAllChannels();
-    const totalVideos = channelManager.getTotalVideos();
+    const currentProject = upstashManager.getCurrentProject();
+    const channels = channelManager.getAllChannels(currentProject?.id);
+    const totalVideos = channelManager.getTotalVideos(currentProject?.id);
     
     res.json({
       ...stats,
@@ -197,10 +329,57 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Get indexed channels
+// Get indexed channels with detailed info
 app.get('/api/channels', (req, res) => {
-  const channels = channelManager.getAllChannels();
+  const currentProject = upstashManager.getCurrentProject();
+  const channels = channelManager.getAllChannels(currentProject?.id);
   res.json(channels);
+});
+
+// Get indexing logs
+app.get('/api/logs', async (req, res) => {
+  await loadLogs(); // Reload from file
+  res.json(indexingLogs);
+});
+
+// Get detailed channel info with videos
+app.get('/api/channels/:channelId/videos', async (req, res) => {
+  const { channelId } = req.params;
+  
+  try {
+    // Find the most recent log for this channel
+    const channelLogs = indexingLogs.filter(log => log.channelId === channelId);
+    const latestLog = channelLogs[channelLogs.length - 1];
+    
+    if (!latestLog) {
+      return res.status(404).json({ error: 'Channel not found in logs' });
+    }
+    
+    res.json({
+      channelId,
+      channelName: latestLog.channelName,
+      successVideos: latestLog.successVideos,
+      failedVideos: latestLog.failedVideos,
+      totalIndexed: latestLog.successCount,
+      totalFailed: latestLog.failedCount
+    });
+  } catch (error) {
+    console.error('Error fetching channel videos:', error);
+    res.status(500).json({ error: 'Failed to fetch channel videos' });
+  }
+});
+
+// Delete a channel
+app.delete('/api/channels/:channelId', async (req, res) => {
+  const { channelId } = req.params;
+  
+  try {
+    await channelManager.removeChannel(channelId);
+    res.json({ success: true, message: 'Channel removed successfully' });
+  } catch (error) {
+    console.error('Error deleting channel:', error);
+    res.status(500).json({ error: 'Failed to delete channel' });
+  }
 });
 
 // Reset vector store
@@ -267,6 +446,108 @@ app.delete('/api/projects/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting project:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Auto-refresh settings
+let autoRefreshSettings = {
+  enabled: false,
+  interval: 24 * 60 * 60 * 1000, // 24 hours
+  lastCheck: null
+};
+
+const settingsFile = path.join(__dirname, '../../data/auto_refresh.json');
+
+// Load auto-refresh settings
+async function loadAutoRefreshSettings() {
+  try {
+    const data = await fs.readFile(settingsFile, 'utf8');
+    autoRefreshSettings = JSON.parse(data);
+  } catch (error) {
+    // Use defaults
+  }
+}
+
+// Save auto-refresh settings
+async function saveAutoRefreshSettings() {
+  try {
+    await fs.writeFile(settingsFile, JSON.stringify(autoRefreshSettings, null, 2));
+  } catch (error) {
+    console.error('Error saving auto-refresh settings:', error);
+  }
+}
+
+// Check for new videos
+async function checkForNewVideos() {
+  if (!autoRefreshSettings.enabled) return;
+  
+  console.log('Checking for new videos...');
+  const channels = channelManager.getAllChannels();
+  
+  for (const [channelId, channelInfo] of Object.entries(channels)) {
+    try {
+      // Get latest videos from YouTube
+      const videos = await youtubeService.getChannelVideos(channelId);
+      const existingVideoCount = channelInfo.videoCount || 0;
+      
+      if (videos.length > existingVideoCount) {
+        console.log(`Found ${videos.length - existingVideoCount} new videos for ${channelInfo.channelName}`);
+        // Trigger indexing for new videos only
+        // This would need to be implemented to only index new videos
+      }
+    } catch (error) {
+      console.error(`Error checking channel ${channelId}:`, error);
+    }
+  }
+  
+  autoRefreshSettings.lastCheck = new Date().toISOString();
+  await saveAutoRefreshSettings();
+}
+
+// Auto-refresh endpoints
+app.get('/api/auto-refresh', (req, res) => {
+  res.json(autoRefreshSettings);
+});
+
+app.post('/api/auto-refresh', async (req, res) => {
+  const { enabled, interval } = req.body;
+  
+  autoRefreshSettings.enabled = enabled !== undefined ? enabled : autoRefreshSettings.enabled;
+  autoRefreshSettings.interval = interval || autoRefreshSettings.interval;
+  
+  await saveAutoRefreshSettings();
+  
+  if (autoRefreshSettings.enabled) {
+    // Start checking
+    scheduleAutoRefresh();
+  }
+  
+  res.json(autoRefreshSettings);
+});
+
+app.post('/api/check-new-videos', async (req, res) => {
+  // Manual trigger to check for new videos
+  await checkForNewVideos();
+  res.json({ message: 'Check completed', lastCheck: autoRefreshSettings.lastCheck });
+});
+
+// Schedule auto-refresh
+let autoRefreshTimer = null;
+
+function scheduleAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+  }
+  
+  if (autoRefreshSettings.enabled) {
+    autoRefreshTimer = setInterval(checkForNewVideos, autoRefreshSettings.interval);
+  }
+}
+
+// Load settings and start auto-refresh if enabled
+loadAutoRefreshSettings().then(() => {
+  if (autoRefreshSettings.enabled) {
+    scheduleAutoRefresh();
   }
 });
 

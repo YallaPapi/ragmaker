@@ -46,13 +46,23 @@ class VectorStoreService {
 
   async query(queryEmbedding, topK = 5) {
     try {
-      const results = await this.index.query({
+      const queryOptions = {
         vector: queryEmbedding,
-        topK,
+        topK: topK * 3, // Get more results to filter
         includeMetadata: true
-      });
+      };
       
-      return results;
+      const results = await this.index.query(queryOptions);
+      
+      // Filter results by namespace if one is set
+      if (this.namespace) {
+        const filtered = results.filter(r => 
+          r.id && r.id.startsWith(`${this.namespace}_`)
+        );
+        return filtered.slice(0, topK);
+      }
+      
+      return results.slice(0, topK);
     } catch (error) {
       console.error('Error querying vector store:', error);
       throw error;
