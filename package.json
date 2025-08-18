@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/api/server.js",
+    "start:3011": "set PORT=3011&& node src/api/server.js",
     "dev": "node src/api/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,9 +14,11 @@
   "license": "ISC",
   "dependencies": {
     "@langchain/community": "^0.3.51",
+    "@langchain/core": "^0.3.71",
     "@langchain/openai": "^0.6.7",
     "@upstash/vector": "^1.2.2",
     "axios": "^1.11.0",
+    "bottleneck": "^2.19.5",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^4.21.2",

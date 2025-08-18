@@ -92,7 +92,7 @@ loadLogs();
 
 // Index a YouTube channel (adds to existing knowledge base)
 app.post('/api/index-channel', async (req, res) => {
-  const { channelId, videoLimit } = req.body;
+  const { channelId, videoLimit, skipExisting = false, excludeShorts = false } = req.body;
   
   if (!channelId) {
     return res.status(400).json({ error: 'Channel ID is required' });
@@ -102,8 +102,8 @@ app.post('/api/index-channel', async (req, res) => {
     return res.status(409).json({ error: 'Already indexing a channel' });
   }
   
-  // Check if channel already indexed
-  if (channelManager.isChannelIndexed(channelId)) {
+  // Check if channel already indexed (only block if not skipping existing)
+  if (!skipExisting && channelManager.isChannelIndexed(channelId)) {
     return res.status(200).json({ 
       message: 'Channel already indexed', 
       channelId,
@@ -134,7 +134,15 @@ app.post('/api/index-channel', async (req, res) => {
       // Fetch transcripts with custom limit or all videos
       indexingStatus.message = 'Fetching channel videos...';
       indexingStatus.startTime = new Date().toISOString();
-      const result = await youtubeService.getChannelTranscripts(channelId, videoLimit);
+      
+      // Pass options to YouTube service
+      const options = {
+        limit: videoLimit,
+        excludeShorts,
+        skipExisting: skipExisting ? channelManager.getIndexedVideos(channelId) : []
+      };
+      
+      const result = await youtubeService.getChannelTranscripts(channelId, options);
       const { channelInfo, transcripts, failed, totalVideos, processedVideos } = result;
       
       indexingStatus.totalVideos = processedVideos;
@@ -218,12 +226,26 @@ app.post('/api/index-channel', async (req, res) => {
       // Save channel info with project ID (use resolved channel ID)
       const currentProject = upstashManager.getCurrentProject();
       const resolvedChannelId = channelInfo.id || channelId;
-      await channelManager.addChannel(resolvedChannelId, {
-        channelId: resolvedChannelId,
-        channelName,
-        videoCount: transcripts.length,
-        totalChunks: embeddings.length
-      }, currentProject?.id);
+      
+      // Track indexed video IDs
+      const indexedVideoIds = indexingStatus.successVideos.map(v => v.videoId);
+      
+      // If skipExisting was used, we're updating an existing channel
+      if (skipExisting && channelManager.isChannelIndexed(resolvedChannelId)) {
+        await channelManager.updateChannel(resolvedChannelId, {
+          videoCount: channelManager.getChannel(resolvedChannelId).videoCount + transcripts.length,
+          totalChunks: (channelManager.getChannel(resolvedChannelId).totalChunks || 0) + embeddings.length
+        });
+        await channelManager.addIndexedVideos(resolvedChannelId, indexedVideoIds);
+      } else {
+        await channelManager.addChannel(resolvedChannelId, {
+          channelId: resolvedChannelId,
+          channelName,
+          videoCount: transcripts.length,
+          totalChunks: embeddings.length
+        }, currentProject?.id);
+        await channelManager.addIndexedVideos(resolvedChannelId, indexedVideoIds);
+      }
       
       indexingStatus.endTime = new Date().toISOString();
       indexingStatus.isIndexing = false;
@@ -334,6 +356,17 @@ app.get('/api/channels', (req, res) => {
   const currentProject = upstashManager.getCurrentProject();
   const channels = channelManager.getAllChannels(currentProject?.id);
   res.json(channels);
+});
+
+// Get YouTube API quota status
+app.get('/api/quota', (req, res) => {
+  try {
+    const quotaStatus = youtubeService.getQuotaStatus();
+    res.json(quotaStatus);
+  } catch (error) {
+    console.error('Error getting quota status:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Get indexing logs
@@ -503,6 +536,112 @@ async function checkForNewVideos() {
   autoRefreshSettings.lastCheck = new Date().toISOString();
   await saveAutoRefreshSettings();
 }
+
+// Bulk channel import endpoint
+app.post('/api/bulk-import', async (req, res) => {
+  const { channels, videoLimit, excludeShorts } = req.body;
+  
+  if (!channels || !Array.isArray(channels) || channels.length === 0) {
+    return res.status(400).json({ error: 'No channels provided' });
+  }
+  
+  const queueStatus = {
+    total: channels.length,
+    processed: 0,
+    successful: [],
+    failed: [],
+    inProgress: false
+  };
+  
+  res.json({ 
+    message: 'Bulk import started', 
+    totalChannels: channels.length 
+  });
+  
+  // Process channels sequentially in background
+  (async () => {
+    queueStatus.inProgress = true;
+    
+    for (const channelId of channels) {
+      try {
+        // Check if already processing
+        if (indexingStatus.isIndexing) {
+          // Wait for current indexing to complete
+          while (indexingStatus.isIndexing) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        // Start indexing this channel
+        const response = await fetch(`http://localhost:${config.server.port}/api/index-channel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channelId,
+            videoLimit,
+            excludeShorts,
+            skipExisting: false
+          })
+        });
+        
+        if (response.ok) {
+          // Wait for indexing to complete
+          while (indexingStatus.isIndexing) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+          queueStatus.successful.push(channelId);
+        } else {
+          queueStatus.failed.push({ channelId, error: 'Failed to start indexing' });
+        }
+      } catch (error) {
+        queueStatus.failed.push({ channelId, error: error.message });
+      }
+      
+      queueStatus.processed++;
+    }
+    
+    queueStatus.inProgress = false;
+  })();
+});
+
+// Get bulk import status
+app.get('/api/bulk-import-status', (req, res) => {
+  // This would need to be properly implemented with a queue manager
+  res.json({ message: 'Status endpoint not fully implemented' });
+});
+
+// Export knowledge base endpoint
+app.get('/api/export', async (req, res) => {
+  try {
+    const currentProject = upstashManager.getCurrentProject();
+    const channels = channelManager.getAllChannels(currentProject?.id);
+    
+    // Get all logs for indexed videos
+    const channelLogs = {};
+    for (const [channelId, channel] of Object.entries(channels)) {
+      const logs = indexingLogs.filter(log => log.channelId === channelId);
+      if (logs.length > 0) {
+        channelLogs[channelId] = logs[logs.length - 1]; // Get latest log
+      }
+    }
+    
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      project: currentProject,
+      channels: channels,
+      videoDetails: channelLogs,
+      stats: await vectorStore.getStats()
+    };
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="kb_export_${currentProject?.name || 'default'}_${Date.now()}.json"`);
+    res.json(exportData);
+  } catch (error) {
+    console.error('Error exporting knowledge base:', error);
+    res.status(500).json({ error: 'Failed to export knowledge base' });
+  }
+});
 
 // Auto-refresh endpoints
 app.get('/api/auto-refresh', (req, res) => {

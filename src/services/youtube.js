@@ -1,87 +1,82 @@
-const { YoutubeTranscript } = require('youtube-transcript');
 const axios = require('axios');
 const config = require('../config');
+const { Innertube } = require('youtubei.js');
+const YouTubeRateLimiter = require('./youtubeRateLimiter');
 
 class YouTubeService {
   constructor() {
     this.apiKey = config.youtube.apiKey;
+    this.innertube = null;
+    this.rateLimiter = new YouTubeRateLimiter();
+  }
+
+  async initInnertube() {
+    if (!this.innertube) {
+      this.innertube = await Innertube.create();
+    }
+    return this.innertube;
   }
 
   async resolveChannelId(identifier) {
-    // If it looks like a channel ID (starts with UC and 24 chars), use it directly
     if (identifier.startsWith('UC') && identifier.length === 24) {
       return identifier;
     }
     
-    // Try to search for the channel by handle or username
     try {
-      // First try as a handle/username search
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(identifier)}&key=${this.apiKey}`;
-      const searchResponse = await axios.get(searchUrl);
       
-      if (searchResponse.data.items && searchResponse.data.items.length > 0) {
-        // Look for exact match in custom URL or title
-        for (const item of searchResponse.data.items) {
-          const channelId = item.snippet.channelId;
-          // Get full channel details to check custom URL
-          const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${this.apiKey}`;
-          const channelResponse = await axios.get(channelUrl);
-          
-          if (channelResponse.data.items && channelResponse.data.items.length > 0) {
-            const channel = channelResponse.data.items[0];
-            // Check if custom URL matches
-            if (channel.snippet.customUrl && 
-                (channel.snippet.customUrl === `@${identifier}` || 
-                 channel.snippet.customUrl === identifier ||
-                 channel.snippet.customUrl.replace('@', '') === identifier)) {
-              return channelId;
-            }
-          }
-        }
-        
-        // If no exact match, return first result
-        return searchResponse.data.items[0].snippet.channelId;
+      // Use rate limiter for search API (expensive at 100 units)
+      const response = await this.rateLimiter.searchVideos(async () => {
+        return await axios.get(searchUrl);
+      });
+      
+      if (response.data.items && response.data.items.length > 0) {
+        return response.data.items[0].snippet.channelId;
       }
     } catch (error) {
-      console.error('Error resolving channel identifier:', error);
+      console.error('Channel search error:', error.message);
     }
     
-    // If all else fails, try using it as a channel ID anyway
     return identifier;
   }
 
   async getChannelInfo(channelId) {
-    // Resolve the channel ID first if needed
     const resolvedId = await this.resolveChannelId(channelId);
     
     const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&id=${resolvedId}&key=${this.apiKey}`;
-    const channelResponse = await axios.get(channelUrl);
     
-    if (!channelResponse.data.items || channelResponse.data.items.length === 0) {
+    // Use rate limiter for channels.list API (1 unit)
+    const response = await this.rateLimiter.fetchChannelDetails(async () => {
+      return await axios.get(channelUrl);
+    });
+    
+    if (!response.data.items || response.data.items.length === 0) {
       throw new Error('Channel not found');
     }
     
     return {
       id: resolvedId,
-      name: channelResponse.data.items[0].snippet.title,
-      description: channelResponse.data.items[0].snippet.description,
-      uploadsPlaylistId: channelResponse.data.items[0].contentDetails.relatedPlaylists.uploads
+      name: response.data.items[0].snippet.title,
+      description: response.data.items[0].snippet.description,
+      uploadsPlaylistId: response.data.items[0].contentDetails.relatedPlaylists.uploads
     };
   }
 
-  async getChannelVideos(channelId) {
+  async getChannelVideos(channelId, options = {}) {
     try {
       const videos = [];
       let pageToken = '';
       
-      // Get channel info including uploads playlist
       const channelInfo = await this.getChannelInfo(channelId);
       const uploadsPlaylistId = channelInfo.uploadsPlaylistId;
       
-      // Fetch all videos from uploads playlist
       do {
         const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${pageToken}&key=${this.apiKey}`;
-        const response = await axios.get(playlistUrl);
+        
+        // Use rate limiter for playlistItems.list API (1 unit)
+        const response = await this.rateLimiter.fetchPlaylistItems(async () => {
+          return await axios.get(playlistUrl);
+        });
         
         for (const item of response.data.items) {
           videos.push({
@@ -104,47 +99,69 @@ class YouTubeService {
   }
 
   async getVideoTranscript(videoId) {
-    // Try multiple approaches to get transcript
-    const attempts = [
-      { lang: 'en' },
-      { lang: 'en-US' },
-      { lang: 'en-GB' },
-      {}, // Try without language (gets auto-generated)
-    ];
-    
-    for (const options of attempts) {
-      try {
-        const transcript = await YoutubeTranscript.fetchTranscript(videoId, options);
+    try {
+      await this.initInnertube();
+      
+      // Get video info first
+      const info = await this.innertube.getInfo(videoId);
+      
+      // Check if transcript is available
+      if (!info.captions || !info.captions.caption_tracks || info.captions.caption_tracks.length === 0) {
+        console.log(`No captions available for ${videoId}`);
+        return null;
+      }
+      
+      // Get transcript using the info object
+      const transcriptInfo = await info.getTranscript();
+      
+      if (transcriptInfo && transcriptInfo.transcript && transcriptInfo.transcript.content && transcriptInfo.transcript.content.body) {
+        const segmentList = transcriptInfo.transcript.content.body;
         
-        if (transcript && transcript.length > 0) {
-          const fullText = transcript
-            .map(segment => segment.text)
+        // Extract segments
+        let segments = [];
+        if (segmentList.initial_segments) {
+          segments = segmentList.initial_segments;
+        } else if (Array.isArray(segmentList)) {
+          segments = segmentList[0]?.transcript_segment_list?.initial_segments || [];
+        } else if (segmentList.transcript_segment_list) {
+          segments = segmentList.transcript_segment_list.initial_segments || [];
+        }
+        
+        if (segments.length > 0) {
+          // Extract text from segments
+          const fullText = segments
+            .map(segment => {
+              // Handle different segment structures
+              if (segment.snippet && segment.snippet.text) {
+                return segment.snippet.text;
+              } else if (segment.text) {
+                return segment.text;
+              }
+              return '';
+            })
+            .filter(text => text.length > 0)
             .join(' ')
             .replace(/\s+/g, ' ')
             .trim();
           
-          if (fullText && fullText.length >= 10) {
-            console.log(`Got transcript for ${videoId} (lang: ${options.lang || 'auto'})`);
+          if (fullText.length > 10) {
+            console.log(`Got transcript for ${videoId} (${fullText.length} chars)`);
             return {
               videoId,
               transcript: fullText,
-              segments: transcript
+              segments: segments.length
             };
           }
         }
-      } catch (error) {
-        // Try next option
-        if (!options.lang) {
-          console.log(`No transcript available for ${videoId}: ${error.message}`);
-        }
       }
+    } catch (error) {
+      console.log(`Error getting transcript for ${videoId}: ${error.message}`);
     }
     
     return null;
   }
 
   async getVideoMetadata(videoIds) {
-    // Fetch detailed metadata for videos
     const chunks = [];
     for (let i = 0; i < videoIds.length; i += 50) {
       const batch = videoIds.slice(i, i + 50).join(',');
@@ -168,7 +185,11 @@ class YouTubeService {
     }, {});
   }
 
-  async getChannelTranscripts(channelId, limit = null) {
+  async getChannelTranscripts(channelId, options = {}) {
+    // Handle both old format (limit as number) and new format (options object)
+    const config = typeof options === 'number' ? { limit: options } : options;
+    const { limit = null, excludeShorts = false, skipExisting = [] } = config;
+    
     console.log(`Fetching channel info for ${channelId}...`);
     const channelInfo = await this.getChannelInfo(channelId);
     console.log(`Channel: ${channelInfo.name}`);
@@ -177,33 +198,48 @@ class YouTubeService {
     const videos = await this.getChannelVideos(channelId);
     console.log(`Found ${videos.length} videos`);
     
-    // Allow optional limit for testing, otherwise process all videos
-    const videosToProcess = limit ? videos.slice(0, limit) : videos;
+    // Filter out already indexed videos
+    const skipExistingSet = new Set(skipExisting);
+    let filteredVideos = videos.filter(v => !skipExistingSet.has(v.videoId));
+    
+    if (skipExisting.length > 0) {
+      console.log(`Skipping ${skipExisting.length} already indexed videos`);
+    }
+    
+    // Apply limit after filtering
+    const videosToProcess = limit ? filteredVideos.slice(0, limit) : filteredVideos;
     console.log(`Processing ${videosToProcess.length} videos...`);
     
-    // Fetch video metadata for all videos
     console.log('Fetching video metadata...');
     const videoIds = videosToProcess.map(v => v.videoId);
     const metadata = await this.getVideoMetadata(videoIds);
     
+    // Filter out shorts if requested
+    let finalVideosToProcess = videosToProcess;
+    if (excludeShorts) {
+      finalVideosToProcess = videosToProcess.filter(video => {
+        const videoMeta = metadata[video.videoId];
+        if (!videoMeta || !videoMeta.duration) return true;
+        
+        // Parse ISO 8601 duration to seconds
+        const duration = this.parseDuration(videoMeta.duration);
+        // YouTube Shorts are typically under 60 seconds
+        return duration >= 60;
+      });
+      
+      const shortsFiltered = videosToProcess.length - finalVideosToProcess.length;
+      if (shortsFiltered > 0) {
+        console.log(`Filtered out ${shortsFiltered} YouTube Shorts`);
+      }
+    }
+    
     const transcripts = [];
     const failed = [];
     
-    for (const video of videosToProcess) {
+    for (const video of finalVideosToProcess) {
       console.log(`Fetching transcript for: ${video.title}`);
       
-      // Retry logic for transcript fetching
-      let transcript = null;
-      let retries = 3;
-      
-      while (retries > 0 && !transcript) {
-        transcript = await this.getVideoTranscript(video.videoId);
-        if (!transcript && retries > 1) {
-          console.log(`Retrying transcript fetch for ${video.videoId} (${retries - 1} retries left)...`);
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-        }
-        retries--;
-      }
+      const transcript = await this.getVideoTranscript(video.videoId);
       
       if (transcript) {
         transcripts.push({
@@ -215,12 +251,12 @@ class YouTubeService {
         failed.push({
           ...video,
           metadata: metadata[video.videoId],
-          reason: 'No transcript available after 3 attempts'
+          reason: 'No transcript available'
         });
       }
       
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Minimal delay
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     console.log(`Successfully fetched ${transcripts.length} transcripts, ${failed.length} failed`);
@@ -229,8 +265,42 @@ class YouTubeService {
       transcripts,
       failed,
       totalVideos: videos.length,
-      processedVideos: videosToProcess.length
+      processedVideos: finalVideosToProcess.length
     };
+  }
+
+  parseDuration(duration) {
+    // Parse ISO 8601 duration (e.g., PT1M30S) to seconds
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+    
+    const hours = parseInt(match[1] || 0);
+    const minutes = parseInt(match[2] || 0);
+    const seconds = parseInt(match[3] || 0);
+    
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  
+  // Get rate limiter status for UI display
+  getQuotaStatus() {
+    return this.rateLimiter.getStatus();
+  }
+  
+  // Subscribe to quota events
+  onQuotaWarning(callback) {
+    this.rateLimiter.on('quotaWarning', callback);
+  }
+  
+  onQuotaCritical(callback) {
+    this.rateLimiter.on('quotaCritical', callback);
+  }
+  
+  onQuotaExhausted(callback) {
+    this.rateLimiter.on('quotaExhausted', callback);
+  }
+  
+  onQuotaReset(callback) {
+    this.rateLimiter.on('quotaReset', callback);
   }
 }
 

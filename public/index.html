@@ -601,13 +601,18 @@
 <body>
     <div class="main-container">
         <div class="header">
-            <h1>📚 YouTube RAG Knowledge Base</h1>
-            <div class="project-selector">
-                <select id="projectSelect" onchange="switchProject()">
-                    <option value="">Select Project...</option>
-                </select>
-                <button onclick="showNewProjectModal()">➕ New Project</button>
-                <button onclick="deleteCurrentProject()" class="danger">🗑️</button>
+            <h1>📚 YouTube RAG Knowledge Base <span id="projectNameDisplay" style="font-size: 0.8em; opacity: 0.8;"></span></h1>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div id="quotaStatus" style="padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 8px; font-size: 14px;">
+                    <span>📊 Quota: <span id="quotaUsage">--</span></span>
+                </div>
+                <div class="project-selector">
+                    <select id="projectSelect" onchange="switchProject()">
+                        <option value="">Select Project...</option>
+                    </select>
+                    <button onclick="showNewProjectModal()">➕ New Project</button>
+                    <button onclick="deleteCurrentProject()" class="danger">🗑️</button>
+                </div>
             </div>
         </div>
 
@@ -630,6 +635,12 @@
                         </div>
                         <div class="input-group">
                             <input type="number" id="videoLimit" placeholder="Videos to process (empty = ALL)" min="1">
+                        </div>
+                        <div class="input-group" style="margin: 10px 0;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="excludeShortsMain">
+                                Exclude YouTube Shorts
+                            </label>
                         </div>
                         <div class="input-group">
                             <button id="indexBtn" onclick="indexChannel()">Add Channel</button>
@@ -680,7 +691,13 @@
 
         <!-- Channels Tab -->
         <div id="channels-tab" class="tab-content">
-            <h2>Indexed Channels</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Indexed Channels</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showBulkImportDialog()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">📤 Bulk Import</button>
+                    <button onclick="exportKnowledgeBase()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">📥 Export Knowledge Base</button>
+                </div>
+            </div>
             <div class="channels-grid" id="channelsGrid">
                 <!-- Channels will be loaded here -->
             </div>
@@ -772,6 +789,7 @@
         let allVideos = [];
         let indexingLogs = [];
         let currentFilter = 'all';
+        let quotaInterval = null;
 
         // Tab switching
         function switchTab(tabName) {
@@ -812,7 +830,10 @@
                 if (data.currentProject) {
                     currentProject = data.currentProject;
                     select.value = data.currentProject.id;
+                    updateProjectNameDisplay(data.currentProject.name);
                     loadStats();
+                } else {
+                    updateProjectNameDisplay('');
                 }
             } catch (error) {
                 console.error('Error loading projects:', error);
@@ -919,6 +940,7 @@
         async function indexChannel() {
             const channelInput = document.getElementById('channelId').value.trim();
             const videoLimitInput = document.getElementById('videoLimit').value.trim();
+            const excludeShorts = document.getElementById('excludeShortsMain').checked;
             
             if (!channelInput) {
                 alert('Please enter a channel URL or ID');
@@ -948,7 +970,7 @@
                 const response = await fetch('/api/index-channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ channelId, videoLimit })
+                    body: JSON.stringify({ channelId, videoLimit, excludeShorts })
                 });
 
                 const data = await response.json();
@@ -1101,30 +1123,63 @@
                 Object.values(channels).forEach(channel => {
                     const card = document.createElement('div');
                     card.className = 'channel-card';
-                    card.innerHTML = `
-                        <div class="channel-header">
-                            <div class="channel-name">${channel.channelName}</div>
-                            <span class="badge info">${channel.channelId.substring(0, 8)}...</span>
+                    
+                    // Create elements safely to avoid escaping issues
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'channel-header';
+                    
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'channel-name';
+                    nameDiv.textContent = channel.channelName;
+                    
+                    const badge = document.createElement('span');
+                    badge.className = 'badge info';
+                    badge.textContent = channel.channelId.substring(0, 8) + '...';
+                    
+                    headerDiv.appendChild(nameDiv);
+                    headerDiv.appendChild(badge);
+                    
+                    const statsDiv = document.createElement('div');
+                    statsDiv.className = 'channel-stats';
+                    statsDiv.innerHTML = `
+                        <div class="channel-stat">
+                            <span>Videos Indexed:</span>
+                            <strong>${channel.videoCount}</strong>
                         </div>
-                        <div class="channel-stats">
-                            <div class="channel-stat">
-                                <span>Videos Indexed:</span>
-                                <strong>${channel.videoCount}</strong>
-                            </div>
-                            <div class="channel-stat">
-                                <span>Total Chunks:</span>
-                                <strong>${channel.totalChunks || 0}</strong>
-                            </div>
-                            <div class="channel-stat">
-                                <span>Indexed At:</span>
-                                <strong>${new Date(channel.indexedAt).toLocaleDateString()}</strong>
-                            </div>
+                        <div class="channel-stat">
+                            <span>Total Chunks:</span>
+                            <strong>${channel.totalChunks || 0}</strong>
                         </div>
-                        <div class="channel-actions">
-                            <button onclick="viewChannelVideos('${channel.channelId}')">View Videos</button>
-                            <button onclick="deleteChannel('${channel.channelId}')" class="danger">Delete</button>
+                        <div class="channel-stat">
+                            <span>Indexed At:</span>
+                            <strong>${new Date(channel.indexedAt).toLocaleDateString()}</strong>
                         </div>
                     `;
+                    
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'channel-actions';
+                    
+                    const viewBtn = document.createElement('button');
+                    viewBtn.textContent = 'View Videos';
+                    viewBtn.onclick = () => viewChannelVideos(channel.channelId);
+                    
+                    const reindexBtn = document.createElement('button');
+                    reindexBtn.textContent = 'Re-index';
+                    reindexBtn.onclick = () => showReindexDialog(channel.channelId, channel.channelName);
+                    
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'danger';
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.onclick = () => deleteChannel(channel.channelId);
+                    
+                    actionsDiv.appendChild(viewBtn);
+                    actionsDiv.appendChild(reindexBtn);
+                    actionsDiv.appendChild(deleteBtn);
+                    
+                    card.appendChild(headerDiv);
+                    card.appendChild(statsDiv);
+                    card.appendChild(actionsDiv);
+                    
                     grid.appendChild(card);
                 });
             } catch (error) {
@@ -1460,9 +1515,290 @@
             }
         }
         
+        // Bulk import functions
+        function showBulkImportDialog() {
+            document.getElementById('bulkImportDialog').style.display = 'flex';
+        }
+        
+        function closeBulkImportDialog() {
+            document.getElementById('bulkImportDialog').style.display = 'none';
+            document.getElementById('bulkChannelsList').value = '';
+            document.getElementById('bulkVideoLimit').value = '';
+            document.getElementById('bulkExcludeShorts').checked = false;
+        }
+        
+        async function startBulkImport() {
+            const channelsText = document.getElementById('bulkChannelsList').value.trim();
+            const videoLimit = parseInt(document.getElementById('bulkVideoLimit').value) || null;
+            const excludeShorts = document.getElementById('bulkExcludeShorts').checked;
+            
+            if (!channelsText) {
+                alert('Please enter at least one channel');
+                return;
+            }
+            
+            // Parse channels list
+            const channels = channelsText
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map(line => extractChannelId(line).id);
+            
+            if (channels.length === 0) {
+                alert('No valid channels found');
+                return;
+            }
+            
+            const button = document.getElementById('bulkImportButton');
+            button.disabled = true;
+            button.textContent = `Starting import of ${channels.length} channels...`;
+            
+            try {
+                const response = await fetch('/api/bulk-import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channels,
+                        videoLimit,
+                        excludeShorts
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    closeBulkImportDialog();
+                    alert(`Bulk import started for ${result.totalChannels} channels. Check the Indexing tab for progress.`);
+                    switchTab('indexing');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error starting bulk import: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Start Import';
+            }
+        }
+        
+        // Export knowledge base
+        async function exportKnowledgeBase() {
+            try {
+                const response = await fetch('/api/export');
+                
+                if (!response.ok) {
+                    throw new Error('Export failed');
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const filename = response.headers.get('content-disposition')?.split('filename=')?.[1]?.replace(/"/g, '') || 'kb_export.json';
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                alert('Knowledge base exported successfully!');
+            } catch (error) {
+                alert('Error exporting knowledge base: ' + error.message);
+            }
+        }
+        
+        // Update project name display
+        function updateProjectNameDisplay(projectName) {
+            const display = document.getElementById('projectNameDisplay');
+            if (projectName) {
+                display.textContent = `- ${projectName}`;
+            } else {
+                display.textContent = '';
+            }
+        }
+        
+        // Re-index dialog functionality
+        function showReindexDialog(channelId, channelName) {
+            const dialog = document.getElementById('reindexDialog');
+            document.getElementById('reindexChannelName').textContent = channelName;
+            document.getElementById('reindexChannelId').value = channelId;
+            dialog.style.display = 'flex';
+        }
+        
+        function closeReindexDialog() {
+            document.getElementById('reindexDialog').style.display = 'none';
+            document.getElementById('reindexVideoLimit').value = '';
+            document.getElementById('excludeShorts').checked = false;
+        }
+        
+        async function startReindex() {
+            const channelId = document.getElementById('reindexChannelId').value;
+            const videoLimit = parseInt(document.getElementById('reindexVideoLimit').value) || null;
+            const excludeShorts = document.getElementById('excludeShorts').checked;
+            
+            const button = document.getElementById('reindexButton');
+            button.disabled = true;
+            button.textContent = 'Starting re-index...';
+            
+            try {
+                const response = await fetch('/api/index-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channelId,
+                        videoLimit,
+                        skipExisting: true,
+                        excludeShorts
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    closeReindexDialog();
+                    alert('Re-indexing started! Check the Indexing tab for progress.');
+                    switchTab('indexing');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error starting re-index: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Start Re-index';
+            }
+        }
+        
+        // Quota monitoring
+        async function updateQuotaStatus() {
+            try {
+                const response = await fetch('/api/quota');
+                const quota = await response.json();
+                
+                const quotaElement = document.getElementById('quotaUsage');
+                const quotaStatusElement = document.getElementById('quotaStatus');
+                
+                if (quotaElement) {
+                    const percentUsed = parseFloat(quota.percentUsed);
+                    const remaining = quota.quotaRemaining;
+                    const limit = quota.quotaLimit;
+                    
+                    quotaElement.textContent = `${remaining.toLocaleString()}/${limit.toLocaleString()} (${percentUsed}% used)`;
+                    
+                    // Update color based on status
+                    if (quota.status === 'critical') {
+                        quotaStatusElement.style.background = 'rgba(255, 0, 0, 0.3)';
+                        quotaElement.innerHTML += ' ⚠️';
+                    } else if (quota.status === 'warning') {
+                        quotaStatusElement.style.background = 'rgba(255, 165, 0, 0.3)';
+                        quotaElement.innerHTML += ' ⚡';
+                    } else {
+                        quotaStatusElement.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                    
+                    // Show queue info if there are queued requests
+                    if (quota.queueSize > 0) {
+                        quotaElement.innerHTML += ` | Queue: ${quota.queueSize}`;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching quota status:', error);
+            }
+        }
+        
+        function startQuotaMonitoring() {
+            // Update immediately
+            updateQuotaStatus();
+            
+            // Update every 5 seconds
+            if (quotaInterval) {
+                clearInterval(quotaInterval);
+            }
+            quotaInterval = setInterval(updateQuotaStatus, 5000);
+        }
+        
+        function stopQuotaMonitoring() {
+            if (quotaInterval) {
+                clearInterval(quotaInterval);
+                quotaInterval = null;
+            }
+        }
+        
         // Initialize
         loadProjects();
         loadAutoRefreshSettings();
+        startQuotaMonitoring();
+        
+        // Stop monitoring when page is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopQuotaMonitoring();
+            } else {
+                startQuotaMonitoring();
+            }
+        });
     </script>
+    
+    <!-- Bulk Import Dialog -->
+    <div id="bulkImportDialog" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 600px; width: 90%;">
+            <h3 style="margin-bottom: 20px;">Bulk Import Channels</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px;">Enter channel IDs or URLs (one per line):</label>
+                <textarea id="bulkChannelsList" rows="10" placeholder="UCxxxxxxxxxxxxxxxxxxxxxx&#10;https://youtube.com/@channelname&#10;@channelhandle" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace;"></textarea>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px;">Videos per channel (optional):</label>
+                <input type="number" id="bulkVideoLimit" placeholder="Leave empty to index all videos" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="bulkExcludeShorts">
+                    Exclude YouTube Shorts
+                </label>
+            </div>
+            
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+                Channels will be processed sequentially. This may take a while for multiple channels.
+            </p>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeBulkImportDialog()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button id="bulkImportButton" onclick="startBulkImport()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Start Import</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Re-index Dialog -->
+    <div id="reindexDialog" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+            <h3 style="margin-bottom: 20px;">Re-index Channel: <span id="reindexChannelName"></span></h3>
+            <input type="hidden" id="reindexChannelId">
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px;">Number of additional videos to index (optional):</label>
+                <input type="number" id="reindexVideoLimit" placeholder="Leave empty to index all new videos" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="excludeShorts">
+                    Exclude YouTube Shorts (videos under 60 seconds)
+                </label>
+            </div>
+            
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+                This will fetch new videos from the channel and skip any videos that have already been indexed.
+            </p>
+            
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeReindexDialog()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button id="reindexButton" onclick="startReindex()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Start Re-index</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
