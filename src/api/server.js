@@ -75,6 +75,9 @@ let indexingStatus = {
   endTime: null
 };
 
+// Track active indexing promise to properly cancel it
+let activeIndexingJob = null;
+
 // Store all indexing logs
 let indexingLogs = [];
 const logsFile = path.join(__dirname, '../../data/indexing_logs.json');
@@ -142,8 +145,14 @@ app.post('/api/index-channel', async (req, res) => {
   
   res.json({ message: 'Indexing started', channelId });
   
+  // Cancel any existing job
+  if (activeIndexingJob) {
+    indexingStatus.cancelled = true;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
   // Background indexing process
-  (async () => {
+  activeIndexingJob = (async () => {
     try {
       // Fetch transcripts with custom limit or all videos
       indexingStatus.message = 'Fetching channel videos...';
@@ -289,10 +298,21 @@ app.post('/api/index-channel', async (req, res) => {
         channelId,
         totalVideos: 0,
         processedVideos: 0,
-        cancelled: indexingStatus.cancelled
+        cancelled: indexingStatus.cancelled,
+        successVideos: [],
+        failedVideos: [],
+        startTime: null,
+        endTime: null
       };
+    } finally {
+      activeIndexingJob = null;
     }
   })();
+  
+  activeIndexingJob.catch(error => {
+    console.error('Indexing job error:', error);
+    activeIndexingJob = null;
+  });
 });
 
 // Get indexing status
@@ -301,14 +321,58 @@ app.get('/api/index-status', (req, res) => {
 });
 
 // Cancel indexing
-app.post('/api/cancel-indexing', (req, res) => {
-  if (indexingStatus.isIndexing) {
+app.post('/api/cancel-indexing', async (req, res) => {
+  // Always reset status, even if not technically indexing
+  indexingStatus.cancelled = true;
+  indexingStatus.message = 'Cancelling indexing...';
+  
+  // Wait a moment for cancellation to propagate
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Force reset status
+  indexingStatus = {
+    isIndexing: false,
+    progress: 0,
+    message: 'Indexing cancelled',
+    channelId: null,
+    totalVideos: 0,
+    processedVideos: 0,
+    cancelled: false,
+    successVideos: [],
+    failedVideos: [],
+    startTime: null,
+    endTime: null
+  };
+  
+  activeIndexingJob = null;
+  
+  res.json({ success: true, message: 'Indexing cancelled and reset' });
+});
+
+// Force reset indexing status (for stuck jobs)
+app.post('/api/reset-indexing', (req, res) => {
+  // Force stop any active job
+  if (activeIndexingJob) {
     indexingStatus.cancelled = true;
-    indexingStatus.message = 'Cancelling indexing...';
-    res.json({ success: true, message: 'Indexing cancellation requested' });
-  } else {
-    res.status(400).json({ error: 'No indexing in progress' });
+    activeIndexingJob = null;
   }
+  
+  // Reset status completely
+  indexingStatus = {
+    isIndexing: false,
+    progress: 0,
+    message: '',
+    channelId: null,
+    totalVideos: 0,
+    processedVideos: 0,
+    cancelled: false,
+    successVideos: [],
+    failedVideos: [],
+    startTime: null,
+    endTime: null
+  };
+  
+  res.json({ success: true, message: 'Indexing status forcefully reset' });
 });
 
 // Query the RAG system

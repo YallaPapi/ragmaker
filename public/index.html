@@ -1023,6 +1023,33 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
             const progressBar = document.getElementById('progressBar');
             const progressDetails = document.getElementById('progressDetails');
             
+            // Check if already indexing before starting
+            try {
+                const statusCheck = await fetch('/api/index-status');
+                const currentStatus = await statusCheck.json();
+                
+                if (currentStatus.isIndexing) {
+                    const action = confirm('An indexing job is already running. Would you like to:\n\nOK = Cancel it and start new\nCancel = View current progress');
+                    
+                    if (action) {
+                        // Cancel and restart
+                        await cancelIndexing();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    } else {
+                        // Just show current progress
+                        btn.disabled = true;
+                        cancelBtn.style.display = 'inline-block';
+                        status.style.display = 'block';
+                        progressDetails.style.display = 'block';
+                        progressBar.style.display = 'block';
+                        pollIndexingStatus();
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+            
             btn.disabled = true;
             cancelBtn.style.display = 'inline-block';
             isIndexing = true;
@@ -1064,6 +1091,7 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         }
 
         async function pollIndexingStatus() {
+            const startTime = Date.now();
             const interval = setInterval(async () => {
                 try {
                     const response = await fetch('/api/index-status');
@@ -1074,14 +1102,53 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
                     const progressDetails = document.getElementById('progressDetails');
                     const cancelBtn = document.getElementById('cancelBtn');
                     
-                    status.textContent = data.message;
+                    // Enhanced status message with more context
+                    let statusHtml = data.message;
+                    const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+                    
+                    // Add context based on what's happening
+                    if (data.message.includes('Fetching channel videos')) {
+                        statusHtml += `<br><small style="color: #888;">⏱️ Elapsed: ${elapsedTime}s - YouTube API can be slow for large channels</small>`;
+                    } else if (data.message.includes('Processing video')) {
+                        const videosPerSec = data.processedVideos > 0 ? (data.processedVideos / elapsedTime).toFixed(1) : 0;
+                        const remainingTime = data.totalVideos > data.processedVideos ? 
+                            Math.ceil((data.totalVideos - data.processedVideos) / Math.max(videosPerSec, 0.5)) : 0;
+                        statusHtml += `<br><small style="color: #888;">⚡ ${videosPerSec} videos/sec - Est. ${remainingTime}s remaining</small>`;
+                    } else if (data.message.includes('Adding to knowledge base')) {
+                        statusHtml += `<br><small style="color: #888;">💾 Indexing vectors to database...</small>`;
+                    }
+                    
+                    status.innerHTML = statusHtml;
                     progressFill.style.width = data.progress + '%';
                     
+                    // More detailed progress display
                     if (data.totalVideos > 0) {
+                        const percentComplete = ((data.processedVideos || 0) / data.totalVideos * 100).toFixed(1);
                         progressDetails.innerHTML = `
-                            <strong>Progress:</strong> ${data.processedVideos || 0} / ${data.totalVideos} videos processed (${data.progress}%)<br>
-                            <strong>Success:</strong> ${data.successVideos?.length || 0} videos indexed<br>
-                            <strong>Failed:</strong> ${data.failedVideos?.length || 0} videos skipped
+                            <div style="background: #f8f9fa; padding: 8px; border-radius: 4px; margin-top: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <strong>📊 Progress:</strong>
+                                    <span>${data.processedVideos || 0} / ${data.totalVideos} videos (${percentComplete}%)</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span style="color: #28a745;">✅ Indexed:</span>
+                                    <span style="color: #28a745;">${data.successVideos?.length || 0} videos</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #dc3545;">⚠️ Skipped:</span>
+                                    <span style="color: #dc3545;">${data.failedVideos?.length || 0} videos</span>
+                                </div>
+                                <div style="margin-top: 5px; padding-top: 5px; border-top: 1px solid #dee2e6;">
+                                    <small style="color: #6c757d;">Channel: ${data.channelId || 'Processing...'}</small>
+                                </div>
+                            </div>
+                        `;
+                    } else if (data.message.includes('Fetching')) {
+                        progressDetails.innerHTML = `
+                            <div style="background: #e3f2fd; padding: 8px; border-radius: 4px; margin-top: 8px;">
+                                <div style="color: #1976d2;">🔍 Scanning channel...</div>
+                                <small style="color: #666;">This can take 30-60 seconds for channels with many videos</small>
+                            </div>
                         `;
                     }
                     
@@ -1110,21 +1177,53 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
                 } catch (error) {
                     console.error('Error polling status:', error);
                 }
-            }, 2000);
+            }, 1000); // Poll every second for better updates
         }
 
+        // Alias for re-index compatibility
+        function monitorIndexing() {
+            pollIndexingStatus();
+        }
+        
         async function cancelIndexing() {
             try {
                 const response = await fetch('/api/cancel-indexing', {
                     method: 'POST'
                 });
                 
-                if (!response.ok) {
+                if (response.ok) {
+                    document.getElementById('indexStatus').textContent = 'Indexing cancelled';
+                    document.getElementById('indexBtn').disabled = false;
+                    document.getElementById('cancelBtn').style.display = 'none';
+                    document.getElementById('progressBar').style.display = 'none';
+                    document.getElementById('progressDetails').style.display = 'none';
+                    isIndexing = false;
+                } else {
                     const error = await response.json();
                     console.log(error.error);
                 }
             } catch (error) {
                 console.error('Error cancelling indexing:', error);
+            }
+        }
+        
+        // Force reset stuck indexing
+        async function forceResetIndexing() {
+            try {
+                // Force cancel any running job
+                await fetch('/api/cancel-indexing', { method: 'POST' });
+                
+                // Clear UI
+                document.getElementById('indexStatus').textContent = 'Ready to index';
+                document.getElementById('indexBtn').disabled = false;
+                document.getElementById('cancelBtn').style.display = 'none';
+                document.getElementById('progressBar').style.display = 'none';
+                document.getElementById('progressDetails').style.display = 'none';
+                isIndexing = false;
+                
+                alert('Indexing status has been reset. You can now start a new indexing job.');
+            } catch (error) {
+                console.error('Error resetting indexing:', error);
             }
         }
 
@@ -1847,6 +1946,33 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         loadProjects();
         loadAutoRefreshSettings();
         startQuotaMonitoring();
+        
+        // Check for stuck indexing on page load
+        (async () => {
+            try {
+                const response = await fetch('/api/index-status');
+                const status = await response.json();
+                if (status.isIndexing && status.message && !status.message.includes('Error')) {
+                    console.warn('Found active indexing job:', status.message);
+                    // Show status
+                    const indexStatus = document.getElementById('indexStatus');
+                    const cancelBtn = document.getElementById('cancelBtn');
+                    
+                    if (indexStatus && cancelBtn) {
+                        indexStatus.style.display = 'block';
+                        indexStatus.innerHTML = `
+                            <div style="background: #fff3cd; padding: 10px; border-radius: 4px; border: 1px solid #ffc107;">
+                                <strong>⚠️ Active indexing job detected:</strong> ${status.message}<br>
+                                <button onclick="pollIndexingStatus()" style="margin-top: 5px; margin-right: 10px;">View Progress</button>
+                                <button onclick="forceResetIndexing()" style="margin-top: 5px;">Force Reset</button>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                // Server might not be ready yet, ignore
+            }
+        })();
         
         // Stop monitoring when page is hidden
         document.addEventListener('visibilitychange', () => {
