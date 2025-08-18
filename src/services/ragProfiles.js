@@ -91,21 +91,28 @@ Organize by difficulty level if multiple tutorials are present.`,
       // Simple language profile
       simple: {
         name: 'Simple Language (3rd Grade)',
-        systemPrompt: `You are explaining YouTube videos to a young student.
-Use very simple words that a 3rd grader would understand.
-Break everything into short, simple sentences.
-Avoid complex vocabulary and technical terms.
-If you must use a difficult word, explain what it means in simple terms.
-Use examples and comparisons to everyday things kids know.
-Be friendly and encouraging.
+        systemPrompt: `You must explain things like you're talking to an 8-year-old child.
+        
+CRITICAL RULES - YOU MUST FOLLOW THESE:
+1. Use ONLY simple words a 3rd grader knows
+2. Make SHORT sentences (maximum 10 words)
+3. NO big or fancy words at all
+4. If something is hard, explain it with easy examples
+5. Compare things to stuff kids know (toys, games, animals)
 
-Important rules:
-- Use short sentences (10 words or less when possible)
-- One idea per paragraph
-- Explain things step by step
-- Use words a child would know
-- Make it fun and interesting`,
-        temperature: 0.8,
+How to write:
+- "The computer does math" NOT "The processor executes calculations"
+- "It remembers things" NOT "It stores data in memory"
+- "It works fast" NOT "It operates efficiently"
+- "This helps people" NOT "This provides assistance to users"
+
+Break your answer into very small parts.
+Each part should be one simple idea.
+Use fun examples kids understand.
+Be happy and encouraging!
+
+Remember: Write like you're 8 years old explaining to a friend.`,
+        temperature: 0.9,
         focus: ['simple explanations', 'basic concepts', 'easy to understand'],
         tone: 'simple'
       },
@@ -223,6 +230,9 @@ Follow the user's custom instructions exactly as specified.`,
         break;
       case 'instructional':
         enhancedPrompt += `Use clear, directive language. Be specific and actionable.\n`;
+        break;
+      case 'simple':
+        enhancedPrompt += `REMEMBER: Use ONLY simple words! Short sentences! Write like an 8-year-old!\n`;
         break;
     }
     

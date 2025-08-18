@@ -24,7 +24,9 @@
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
+            max-height: calc(100vh - 40px);
         }
 
         .header {
@@ -129,6 +131,8 @@
             background: #f7f7f7;
             border-radius: 10px;
             padding: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
         }
 
         .chat-main {
@@ -624,6 +628,22 @@
             background: #17a2b8;
             color: white;
         }
+
+        /* Bulk Import Textarea Enhanced Styling */
+        #bulkChannels:focus {
+            border-color: #667eea !important;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+            outline: none !important;
+        }
+
+        #bulkChannels:hover {
+            border-color: #b3b3b3 !important;
+        }
+
+        #bulkChannels::placeholder {
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -678,6 +698,43 @@
                         <div id="progressDetails" style="display: none; margin-top: 10px; font-size: 12px; color: #666;"></div>
                         <div class="progress-bar" id="progressBar" style="display: none;">
                             <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Import Section -->
+                    <div class="index-section" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;">
+                        <h3>🚀 Bulk Import Channels</h3>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Add multiple channels at once. One per line (URLs or IDs).</p>
+                        <div class="input-group">
+                            <textarea id="bulkChannels" placeholder="https://www.youtube.com/@channel1
+UCChannelId2
+https://www.youtube.com/@channel3" 
+                                     style="height: 120px; width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; resize: vertical; line-height: 1.5; background: #fefefe; transition: border-color 0.3s;"></textarea>
+                        </div>
+                        <div class="input-group">
+                            <input type="number" id="bulkVideoLimit" placeholder="Videos per channel (empty = ALL)" min="1">
+                        </div>
+                        <div class="input-group" style="margin: 10px 0;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="excludeShortsBulk">
+                                Exclude YouTube Shorts
+                            </label>
+                        </div>
+                        <div class="input-group">
+                            <button id="bulkImportBtn" onclick="bulkImportChannels()">Import All Channels</button>
+                        </div>
+                        <div id="bulkImportStatus" class="status" style="display: none;"></div>
+                        <div id="bulkProgress" style="display: none; margin-top: 10px;">
+                            <div style="font-size: 12px; margin-bottom: 5px;">
+                                <span id="bulkProgressText">0 / 0 channels processed</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="bulkProgressFill" style="width: 0%;"></div>
+                            </div>
+                            <div id="bulkResults" style="margin-top: 10px; font-size: 11px;">
+                                <div>✅ <span id="successCount">0</span> successful</div>
+                                <div>❌ <span id="failedCount">0</span> failed</div>
+                            </div>
                         </div>
                     </div>
 
@@ -1288,6 +1345,148 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
             } catch (error) {
                 console.error('Error cancelling indexing:', error);
             }
+        }
+
+        // Bulk channel import function
+        async function bulkImportChannels() {
+            const textarea = document.getElementById('bulkChannels');
+            const videoLimit = document.getElementById('bulkVideoLimit').value;
+            const excludeShorts = document.getElementById('excludeShortsBulk').checked;
+            const btn = document.getElementById('bulkImportBtn');
+            const status = document.getElementById('bulkImportStatus');
+            const progressDiv = document.getElementById('bulkProgress');
+            const progressFill = document.getElementById('bulkProgressFill');
+            const progressText = document.getElementById('bulkProgressText');
+            const successCount = document.getElementById('successCount');
+            const failedCount = document.getElementById('failedCount');
+
+            if (!textarea.value.trim()) {
+                status.className = 'status error';
+                status.textContent = 'Please enter at least one channel URL or ID';
+                status.style.display = 'block';
+                return;
+            }
+
+            // Parse channel list
+            const channels = textarea.value
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map(line => {
+                    // Extract channel ID from URL if needed
+                    if (line.includes('youtube.com/@')) {
+                        return line.split('@')[1].split('/')[0].split('?')[0];
+                    } else if (line.includes('youtube.com/channel/')) {
+                        return line.split('channel/')[1].split('/')[0].split('?')[0];
+                    } else if (line.includes('youtube.com/c/')) {
+                        return line.split('c/')[1].split('/')[0].split('?')[0];
+                    }
+                    return line; // Assume it's already a channel ID
+                });
+
+            if (channels.length === 0) {
+                status.className = 'status error';
+                status.textContent = 'No valid channels found';
+                status.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            status.className = 'status info';
+            status.textContent = `Starting bulk import of ${channels.length} channels...`;
+            status.style.display = 'block';
+            progressDiv.style.display = 'block';
+            
+            // Reset progress
+            progressFill.style.width = '0%';
+            progressText.textContent = `0 / ${channels.length} channels processed`;
+            successCount.textContent = '0';
+            failedCount.textContent = '0';
+
+            try {
+                const response = await fetch('/api/bulk-import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channels: channels,
+                        videoLimit: videoLimit ? parseInt(videoLimit) : undefined,
+                        excludeShorts: excludeShorts
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to start bulk import');
+                }
+
+                status.className = 'status success';
+                status.textContent = data.message;
+
+                // Poll for bulk import progress
+                pollBulkImportProgress(channels.length);
+
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+                btn.disabled = false;
+                progressDiv.style.display = 'none';
+            }
+        }
+
+        // Poll bulk import progress
+        async function pollBulkImportProgress(totalChannels) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/bulk-import-status');
+                    if (response.ok) {
+                        const data = await response.json();
+                        updateBulkImportProgress(data, totalChannels);
+                        
+                        if (!data.inProgress && (data.processed >= totalChannels || data.processed === 0)) {
+                            clearInterval(interval);
+                            completeBulkImport();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling bulk import status:', error);
+                }
+            }, 2000);
+        }
+
+        // Update bulk import progress display
+        function updateBulkImportProgress(data, totalChannels) {
+            const progressFill = document.getElementById('bulkProgressFill');
+            const progressText = document.getElementById('bulkProgressText');
+            const successCount = document.getElementById('successCount');
+            const failedCount = document.getElementById('failedCount');
+            const status = document.getElementById('bulkImportStatus');
+
+            const progressPercent = (data.processed / totalChannels) * 100;
+            progressFill.style.width = progressPercent + '%';
+            progressText.textContent = `${data.processed} / ${totalChannels} channels processed`;
+            successCount.textContent = data.successful?.length || 0;
+            failedCount.textContent = data.failed?.length || 0;
+
+            if (data.inProgress) {
+                status.textContent = `Processing channels... (${data.processed}/${totalChannels})`;
+                status.className = 'status info';
+            }
+        }
+
+        // Complete bulk import
+        function completeBulkImport() {
+            const btn = document.getElementById('bulkImportBtn');
+            const status = document.getElementById('bulkImportStatus');
+            const successCount = document.getElementById('successCount');
+            const failedCount = document.getElementById('failedCount');
+
+            btn.disabled = false;
+            status.className = 'status success';
+            status.textContent = `Bulk import completed! ${successCount.textContent} successful, ${failedCount.textContent} failed.`;
+            
+            // Refresh stats
+            loadStats();
+            loadChannels();
         }
         
         // Force reset stuck indexing

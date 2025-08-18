@@ -78,6 +78,16 @@ let indexingStatus = {
 // Track active indexing promise to properly cancel it
 let activeIndexingJob = null;
 
+// Track bulk import status
+let bulkImportStatus = {
+  inProgress: false,
+  total: 0,
+  processed: 0,
+  successful: [],
+  failed: [],
+  currentChannel: null
+};
+
 // Store all indexing logs
 let indexingLogs = [];
 const logsFile = path.join(__dirname, '../../data/indexing_logs.json');
@@ -624,12 +634,14 @@ app.post('/api/bulk-import', async (req, res) => {
     return res.status(400).json({ error: 'No channels provided' });
   }
   
-  const queueStatus = {
+  // Update global bulk import status
+  bulkImportStatus = {
+    inProgress: true,
     total: channels.length,
     processed: 0,
     successful: [],
     failed: [],
-    inProgress: false
+    currentChannel: null
   };
   
   res.json({ 
@@ -639,9 +651,10 @@ app.post('/api/bulk-import', async (req, res) => {
   
   // Process channels sequentially in background
   (async () => {
-    queueStatus.inProgress = true;
     
     for (const channelId of channels) {
+      bulkImportStatus.currentChannel = channelId;
+      
       try {
         // Check if already processing
         if (indexingStatus.isIndexing) {
@@ -669,25 +682,25 @@ app.post('/api/bulk-import', async (req, res) => {
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           
-          queueStatus.successful.push(channelId);
+          bulkImportStatus.successful.push(channelId);
         } else {
-          queueStatus.failed.push({ channelId, error: 'Failed to start indexing' });
+          bulkImportStatus.failed.push({ channelId, error: 'Failed to start indexing' });
         }
       } catch (error) {
-        queueStatus.failed.push({ channelId, error: error.message });
+        bulkImportStatus.failed.push({ channelId, error: error.message });
       }
       
-      queueStatus.processed++;
+      bulkImportStatus.processed++;
     }
     
-    queueStatus.inProgress = false;
+    bulkImportStatus.inProgress = false;
+    bulkImportStatus.currentChannel = null;
   })();
 });
 
 // Get bulk import status
 app.get('/api/bulk-import-status', (req, res) => {
-  // This would need to be properly implemented with a queue manager
-  res.json({ message: 'Status endpoint not fully implemented' });
+  res.json(bulkImportStatus);
 });
 
 // Export knowledge base endpoint
