@@ -49,11 +49,16 @@
         .project-selector select {
             padding: 8px 15px;
             border-radius: 8px;
-            border: none;
-            background: rgba(255,255,255,0.2);
-            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.9);
+            color: #333;
             font-size: 14px;
             cursor: pointer;
+        }
+        
+        .project-selector select option {
+            background: white;
+            color: #333;
         }
 
         .project-selector button {
@@ -783,6 +788,45 @@
         </div>
     </div>
 
+    <!-- Bulk Import Dialog -->
+    <div id="bulkImportDialog" class="modal">
+        <div class="modal-content">
+            <h3>Bulk Import Channels</h3>
+            <p>Enter channel URLs or IDs, one per line:</p>
+            <textarea id="bulkChannelsList" style="width: 100%; height: 150px; margin: 10px 0;" placeholder="https://youtube.com/@channel1
+https://youtube.com/@channel2
+UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
+            <div style="margin: 10px 0;">
+                <label>Video Limit (per channel): <input type="number" id="bulkVideoLimit" min="1" style="width: 100px;"></label>
+            </div>
+            <div style="margin: 10px 0;">
+                <label><input type="checkbox" id="bulkExcludeShorts"> Exclude YouTube Shorts</label>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeBulkImportDialog()" class="secondary">Cancel</button>
+                <button id="bulkImportButton" onclick="startBulkImport()">Start Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Re-index Dialog -->
+    <div id="reindexDialog" class="modal">
+        <div class="modal-content">
+            <h3>Re-index Channel</h3>
+            <p id="reindexChannelName"></p>
+            <div style="margin: 10px 0;">
+                <label><input type="checkbox" id="reindexSkipExisting" checked> Only index new videos</label>
+            </div>
+            <div style="margin: 10px 0;">
+                <label><input type="checkbox" id="reindexExcludeShorts"> Exclude YouTube Shorts</label>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="closeReindexDialog()" class="secondary">Cancel</button>
+                <button id="reindexButton" onclick="confirmReindex()">Re-index</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let isIndexing = false;
         let currentProject = null;
@@ -820,9 +864,12 @@
                 const select = document.getElementById('projectSelect');
                 select.innerHTML = '<option value="">Select Project...</option>';
                 
-                Object.entries(data.projects).forEach(([id, project]) => {
+                // Handle both array and object formats
+                const projects = Array.isArray(data.projects) ? data.projects : Object.values(data.projects || {});
+                
+                projects.forEach(project => {
                     const option = document.createElement('option');
-                    option.value = id;
+                    option.value = project.id;
                     option.textContent = project.name;
                     select.appendChild(option);
                 });
@@ -884,11 +931,30 @@
                     method: 'POST'
                 });
                 
-                if (!response.ok) throw new Error('Failed to switch project');
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to switch project');
+                }
                 
-                await loadProjects();
-                loadStats();
+                const result = await response.json();
+                currentProject = result;
+                
+                // Update UI
+                updateProjectNameDisplay(result.name);
+                
+                // Reload data for new project
+                await loadStats();
+                await loadChannels();
+                
+                // Clear chat messages if on chat tab
+                const messagesElement = document.getElementById('messages');
+                if (messagesElement) {
+                    messagesElement.innerHTML = '';
+                }
+                
+                console.log('Switched to project:', result.name);
             } catch (error) {
+                console.error('Error switching project:', error);
                 alert('Error switching project: ' + error.message);
             }
         }
@@ -1389,7 +1455,7 @@
             `;
             
             try {
-                const response = await fetch('/api/query', {
+                const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question })
@@ -1568,8 +1634,9 @@
                 
                 if (response.ok) {
                     closeBulkImportDialog();
-                    alert(`Bulk import started for ${result.totalChannels} channels. Check the Indexing tab for progress.`);
-                    switchTab('indexing');
+                    alert(`Bulk import started for ${result.totalChannels} channels. Check the Channels tab for progress.`);
+                    // Switch to channels tab to see progress
+                    document.querySelectorAll('.tab')[1].click();
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -1578,6 +1645,56 @@
             } finally {
                 button.disabled = false;
                 button.textContent = 'Start Import';
+            }
+        }
+        
+        // Re-index dialog functions
+        let reindexChannelId = null;
+        
+        function showReindexDialog(channelId, channelName) {
+            reindexChannelId = channelId;
+            document.getElementById('reindexChannelName').textContent = `Re-index ${channelName}?`;
+            document.getElementById('reindexDialog').style.display = 'flex';
+        }
+        
+        function closeReindexDialog() {
+            document.getElementById('reindexDialog').style.display = 'none';
+            reindexChannelId = null;
+        }
+        
+        async function confirmReindex() {
+            if (!reindexChannelId) return;
+            
+            const skipExisting = document.getElementById('reindexSkipExisting').checked;
+            const excludeShorts = document.getElementById('reindexExcludeShorts').checked;
+            
+            closeReindexDialog();
+            
+            // Clear and reuse the main indexing UI
+            document.getElementById('channelId').value = reindexChannelId;
+            document.getElementById('excludeShortsMain').checked = excludeShorts;
+            
+            try {
+                const response = await fetch('/api/index-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channelId: reindexChannelId,
+                        skipExisting,
+                        excludeShorts
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Re-indexing started!');
+                    // Monitor progress
+                    monitorIndexing();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to start re-indexing: ' + error.error);
+                }
+            } catch (error) {
+                alert('Error starting re-index: ' + error.message);
             }
         }
         
@@ -1610,10 +1727,12 @@
         // Update project name display
         function updateProjectNameDisplay(projectName) {
             const display = document.getElementById('projectNameDisplay');
-            if (projectName) {
-                display.textContent = `- ${projectName}`;
-            } else {
-                display.textContent = '';
+            if (display) {
+                if (projectName) {
+                    display.textContent = `- ${projectName}`;
+                } else {
+                    display.textContent = '';
+                }
             }
         }
         
@@ -1738,67 +1857,5 @@
             }
         });
     </script>
-    
-    <!-- Bulk Import Dialog -->
-    <div id="bulkImportDialog" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 600px; width: 90%;">
-            <h3 style="margin-bottom: 20px;">Bulk Import Channels</h3>
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px;">Enter channel IDs or URLs (one per line):</label>
-                <textarea id="bulkChannelsList" rows="10" placeholder="UCxxxxxxxxxxxxxxxxxxxxxx&#10;https://youtube.com/@channelname&#10;@channelhandle" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace;"></textarea>
-            </div>
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px;">Videos per channel (optional):</label>
-                <input type="number" id="bulkVideoLimit" placeholder="Leave empty to index all videos" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-            </div>
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <input type="checkbox" id="bulkExcludeShorts">
-                    Exclude YouTube Shorts
-                </label>
-            </div>
-            
-            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-                Channels will be processed sequentially. This may take a while for multiple channels.
-            </p>
-            
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="closeBulkImportDialog()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button id="bulkImportButton" onclick="startBulkImport()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Start Import</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Re-index Dialog -->
-    <div id="reindexDialog" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
-            <h3 style="margin-bottom: 20px;">Re-index Channel: <span id="reindexChannelName"></span></h3>
-            <input type="hidden" id="reindexChannelId">
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px;">Number of additional videos to index (optional):</label>
-                <input type="number" id="reindexVideoLimit" placeholder="Leave empty to index all new videos" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-            </div>
-            
-            <div style="margin-bottom: 20px;">
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    <input type="checkbox" id="excludeShorts">
-                    Exclude YouTube Shorts (videos under 60 seconds)
-                </label>
-            </div>
-            
-            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-                This will fetch new videos from the channel and skip any videos that have already been indexed.
-            </p>
-            
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="closeReindexDialog()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button id="reindexButton" onclick="startReindex()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Start Re-index</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>

@@ -169,7 +169,7 @@ class UpstashManager {
   }
 
   getAllProjects() {
-    return this.projects;
+    return Object.values(this.projects);
   }
 
   getProjectCredentials(projectId) {

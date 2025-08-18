@@ -110,3 +110,5 @@ Use Context7 for:
 ***
 
 **This manual must be followed in full for all work on the YouTube Channel RAG Chatbot.**
+- never use websearch, use taskmaster resarch function instead
+- DO NOT CALL PARSE-PRD AND --RESEARCH IN THE SAME FUCKING COMMAND FOR TASKMASTER EVER

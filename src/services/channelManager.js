@@ -82,6 +82,31 @@ class ChannelManager {
     const channels = projectId ? this.getAllChannels(projectId) : this.channels;
     return Object.values(channels).reduce((sum, channel) => sum + (channel.videoCount || 0), 0);
   }
+
+  getIndexedVideos(channelId) {
+    const channel = this.channels[channelId];
+    if (!channel || !channel.indexedVideos) {
+      return [];
+    }
+    return channel.indexedVideos;
+  }
+
+  async addIndexedVideos(channelId, videoIds) {
+    if (!this.channels[channelId]) {
+      this.channels[channelId] = {
+        indexedVideos: []
+      };
+    }
+    if (!this.channels[channelId].indexedVideos) {
+      this.channels[channelId].indexedVideos = [];
+    }
+    // Add new video IDs, avoiding duplicates
+    const existingIds = new Set(this.channels[channelId].indexedVideos);
+    const newIds = videoIds.filter(id => !existingIds.has(id));
+    this.channels[channelId].indexedVideos.push(...newIds);
+    this.channels[channelId].lastUpdated = new Date().toISOString();
+    await this.saveChannels();
+  }
 }
 
 module.exports = ChannelManager;
