@@ -166,6 +166,29 @@
             border-radius: 15px;
             max-width: 70%;
             word-wrap: break-word;
+            line-height: 1.6;
+        }
+        
+        .message-content p {
+            margin: 0 0 12px 0;
+        }
+        
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .message-content ul, .message-content ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .message-content li {
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+        
+        .message-content strong {
+            color: #667eea;
         }
 
         .message.user .message-content {
@@ -686,9 +709,23 @@
                             </div>
                         </div>
                     </div>
-                    <div class="chat-input-group">
-                        <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
-                        <button onclick="sendMessage()">Send</button>
+                    <div style="padding: 10px; background: #f5f5f5; border-top: 1px solid #ddd;">
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                            <label style="font-size: 14px;">Response Style:</label>
+                            <select id="profileSelect" style="padding: 5px 10px; border-radius: 4px; border: 1px solid #ddd; flex: 1;">
+                                <option value="default">Default - Helpful Assistant</option>
+                                <option value="technical">Technical - Specs & Features Only</option>
+                                <option value="casual">Casual - Friendly Chat</option>
+                                <option value="research">Research - Academic Analysis</option>
+                                <option value="news">News - Updates & Announcements</option>
+                                <option value="tutorial">Tutorial - How-To Guide</option>
+                            </select>
+                            <button onclick="showProfileDetails()" style="padding: 5px 10px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">ℹ️</button>
+                        </div>
+                        <div class="chat-input-group">
+                            <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
+                            <button onclick="sendMessage()">Send</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -809,6 +846,38 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         </div>
     </div>
 
+    <!-- Profile Details Modal -->
+    <div id="profileDetailsModal" class="modal">
+        <div class="modal-content">
+            <h3>Response Style Profiles</h3>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <h4 style="color: #667eea;">🎯 Technical</h4>
+                    <p>Focuses only on specifications, features, and performance metrics. Ignores opinions and subjective content.</p>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <h4 style="color: #667eea;">😊 Casual</h4>
+                    <p>Friendly, conversational tone. Explains things like talking to a friend. Skips boring technical details.</p>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <h4 style="color: #667eea;">🎓 Research</h4>
+                    <p>Academic analysis with critical evaluation. Focuses on facts, data, and evidence-based claims.</p>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <h4 style="color: #667eea;">📰 News</h4>
+                    <p>Extracts announcements, updates, and newsworthy information. Ignores opinions and speculation.</p>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <h4 style="color: #667eea;">📖 Tutorial</h4>
+                    <p>Focuses on how-to content and step-by-step instructions. Organizes information as actionable guides.</p>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="hideProfileDetails()">Close</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Re-index Dialog -->
     <div id="reindexDialog" class="modal">
         <div class="modal-content">
@@ -1270,6 +1339,14 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         function hideResultsModal() {
             document.getElementById('resultsModal').style.display = 'none';
         }
+        
+        function showProfileDetails() {
+            document.getElementById('profileDetailsModal').style.display = 'flex';
+        }
+        
+        function hideProfileDetails() {
+            document.getElementById('profileDetailsModal').style.display = 'none';
+        }
 
         // Load channels
         async function loadChannels() {
@@ -1531,6 +1608,7 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const question = input.value.trim();
+            const profileId = document.getElementById('profileSelect').value;
             
             if (!question) return;
             
@@ -1557,26 +1635,49 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question })
+                    body: JSON.stringify({ question, profileId })
                 });
                 
                 const data = await response.json();
                 
                 document.getElementById('loadingMessage').remove();
                 
+                // Format the answer with proper paragraph breaks
+                let formattedAnswer = data.answer;
+                // Convert line breaks to paragraphs
+                formattedAnswer = formattedAnswer.replace(/\n\n/g, '</p><p>');
+                formattedAnswer = formattedAnswer.replace(/\n/g, '<br>');
+                formattedAnswer = '<p>' + formattedAnswer + '</p>';
+                
+                // Format bullet points and numbered lists
+                formattedAnswer = formattedAnswer.replace(/^- /gm, '• ');
+                formattedAnswer = formattedAnswer.replace(/^(\d+)\. /gm, '<strong>$1.</strong> ');
+                
+                // Format sources as a proper list
                 let sourcesHtml = '';
                 if (data.sources && data.sources.length > 0) {
-                    sourcesHtml = '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">Sources: ';
+                    sourcesHtml = `
+                        <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; border-left: 3px solid #667eea;">
+                            <strong style="color: #667eea;">📚 Sources:</strong>
+                            <ul style="margin: 10px 0 0 20px; padding: 0;">
+                    `;
                     data.sources.forEach(source => {
-                        sourcesHtml += `<a href="${source.url}" target="_blank" style="margin-right: 10px; color: #667eea;">${source.title}</a>`;
+                        sourcesHtml += `
+                            <li style="margin: 5px 0;">
+                                <a href="${source.url}" target="_blank" style="color: #667eea; text-decoration: none; hover: underline;">
+                                    ${source.title} 
+                                    <span style="color: #999; font-size: 12px;">↗</span>
+                                </a>
+                            </li>
+                        `;
                     });
-                    sourcesHtml += '</div>';
+                    sourcesHtml += '</ul></div>';
                 }
                 
                 messagesDiv.innerHTML += `
                     <div class="message assistant">
-                        <div class="message-content">
-                            ${data.answer}
+                        <div class="message-content" style="line-height: 1.6;">
+                            ${formattedAnswer}
                             ${sourcesHtml}
                         </div>
                     </div>

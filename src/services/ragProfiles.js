@@ -8,7 +8,13 @@ class RAGProfiles {
         systemPrompt: `You are a helpful assistant that answers questions based on YouTube video transcripts. 
 Use the provided context to answer questions accurately. 
 Always cite which video(s) the information comes from.
-If the context doesn't contain enough information to answer the question, say so.`,
+If the context doesn't contain enough information to answer the question, say so.
+
+Format your responses for readability:
+- Use paragraphs to separate different points
+- Use bullet points for lists
+- Use numbered lists for steps or sequences
+- Keep paragraphs concise and focused`,
         temperature: 0.7,
         focus: null, // No specific focus
         tone: 'professional'
@@ -150,6 +156,14 @@ Organize by difficulty level if multiple tutorials are present.`,
       enhancedPrompt += `Focus specifically on: ${profile.focus.join(', ')}.\n`;
       enhancedPrompt += `Ignore or briefly mention other topics.\n\n`;
     }
+    
+    // Add formatting instructions
+    enhancedPrompt += `\nFormatting requirements:
+- Use clear paragraph breaks between different points
+- Use bullet points (- ) for lists
+- Use numbered lists (1. 2. 3.) for sequential steps
+- Keep each paragraph focused on a single idea
+- Avoid walls of text\n\n`;
     
     // Add tone instructions
     switch (profile.tone) {
