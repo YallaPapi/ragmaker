@@ -86,6 +86,38 @@ Organize by difficulty level if multiple tutorials are present.`,
         temperature: 0.3,
         focus: ['tutorials', 'how-to', 'instructions', 'steps', 'guides'],
         tone: 'instructional'
+      },
+      
+      // Simple language profile
+      simple: {
+        name: 'Simple Language (3rd Grade)',
+        systemPrompt: `You are explaining YouTube videos to a young student.
+Use very simple words that a 3rd grader would understand.
+Break everything into short, simple sentences.
+Avoid complex vocabulary and technical terms.
+If you must use a difficult word, explain what it means in simple terms.
+Use examples and comparisons to everyday things kids know.
+Be friendly and encouraging.
+
+Important rules:
+- Use short sentences (10 words or less when possible)
+- One idea per paragraph
+- Explain things step by step
+- Use words a child would know
+- Make it fun and interesting`,
+        temperature: 0.8,
+        focus: ['simple explanations', 'basic concepts', 'easy to understand'],
+        tone: 'simple'
+      },
+      
+      // Custom profile (will be populated by user)
+      custom: {
+        name: 'Custom Instructions',
+        systemPrompt: `You are a helpful assistant that answers questions based on YouTube video transcripts.
+Follow the user's custom instructions exactly as specified.`,
+        temperature: 0.7,
+        focus: null,
+        tone: 'custom'
       }
     };
     
@@ -146,10 +178,17 @@ Organize by difficulty level if multiple tutorials are present.`,
   }
   
   // Build enhanced prompt based on profile and user question
-  buildPrompt(profileId, context, question) {
+  buildPrompt(profileId, context, question, customInstructions = null) {
     const profile = this.getProfile(profileId);
     
-    let enhancedPrompt = profile.systemPrompt + '\n\n';
+    let enhancedPrompt = profile.systemPrompt;
+    
+    // If custom profile, append user's custom instructions
+    if (profileId === 'custom' && customInstructions) {
+      enhancedPrompt += `\n\nUser's custom instructions:\n${customInstructions}`;
+    }
+    
+    enhancedPrompt += '\n\n';
     
     // Add focus instructions if specified
     if (profile.focus && profile.focus.length > 0) {
@@ -157,13 +196,16 @@ Organize by difficulty level if multiple tutorials are present.`,
       enhancedPrompt += `Ignore or briefly mention other topics.\n\n`;
     }
     
-    // Add formatting instructions
-    enhancedPrompt += `\nFormatting requirements:
-- Use clear paragraph breaks between different points
+    // Add enhanced formatting instructions
+    enhancedPrompt += `\nIMPORTANT Formatting requirements:
+- MUST break your response into multiple paragraphs (minimum 3-4 paragraphs for any substantial answer)
+- Each paragraph should cover ONE main point or idea
+- Add TWO line breaks between paragraphs for clear separation
 - Use bullet points (- ) for lists
 - Use numbered lists (1. 2. 3.) for sequential steps
-- Keep each paragraph focused on a single idea
-- Avoid walls of text\n\n`;
+- Keep paragraphs to 3-5 sentences maximum
+- Start a new paragraph when changing topics or ideas
+- Avoid walls of text at all costs\n\n`;
     
     // Add tone instructions
     switch (profile.tone) {

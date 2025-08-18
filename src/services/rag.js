@@ -14,7 +14,7 @@ class RAGService {
     this.profiles = new RAGProfiles();
   }
 
-  async query(question, topK = 5, profileId = 'default') {
+  async query(question, topK = 5, profileId = 'default', customInstructions = null) {
     try {
       // Create embedding for the question
       const questionEmbedding = await this.embeddingService.createEmbedding(question);
@@ -38,7 +38,7 @@ class RAGService {
         .join('\n\n');
       
       // Generate answer using OpenAI with profile
-      const promptConfig = this.profiles.buildPrompt(profileId, context, question);
+      const promptConfig = this.profiles.buildPrompt(profileId, context, question, customInstructions);
       
       const completion = await this.openai.chat.completions.create({
         model: config.generation.model,

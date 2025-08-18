@@ -394,15 +394,15 @@ app.post('/api/query', async (req, res) => {
 
 // Chat endpoint (maintains conversation)
 app.post('/api/chat', async (req, res) => {
-  const { messages, question, profileId } = req.body;
+  const { messages, question, profileId, customInstructions } = req.body;
   
   if (!question) {
     return res.status(400).json({ error: 'Question is required' });
   }
   
   try {
-    // Pass profileId to query method
-    const response = await ragService.query(question, 5, profileId || 'default');
+    // Pass profileId and custom instructions to query method
+    const response = await ragService.query(question, 5, profileId || 'default', customInstructions);
     res.json(response);
   } catch (error) {
     console.error('Chat error:', error);
