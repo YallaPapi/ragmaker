@@ -42,6 +42,14 @@ class UpstashManager {
     }
   }
 
+  getProjectById(projectId) {
+    return this.projects[projectId] || null;
+  }
+  
+  getAllProjects() {
+    return Object.values(this.projects);
+  }
+  
   async createProject(projectName, description = '') {
     // Check if we have API credentials
     if (!this.email || !this.apiKey) {

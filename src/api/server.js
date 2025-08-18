@@ -12,16 +12,26 @@ const UpstashManager = require('../services/upstashManager');
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../../public')));
-
 // Services
 const youtubeService = new YouTubeService();
 const embeddingService = new EmbeddingService();
 const channelManager = new ChannelManager();
 const upstashManager = new UpstashManager();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '../../public')));
+
+// Store services in app locals for route access
+app.locals.channelManager = channelManager;
+app.locals.upstashManager = upstashManager;
+app.locals.youtubeService = youtubeService;
+app.locals.embeddingService = embeddingService;
+
+// Import and use public routes
+const publicRoutes = require('./routes/public');
+app.use(publicRoutes);
 
 // Initialize vector store with current project
 let vectorStore = null;
@@ -41,6 +51,10 @@ const initializeServices = async () => {
     vectorStore = new VectorStoreService();
     ragService = new RAGService(vectorStore);
   }
+  
+  // Store vector store and rag service in app locals
+  app.locals.vectorStore = vectorStore;
+  app.locals.ragService = ragService;
 };
 
 // Initialize services before starting server
