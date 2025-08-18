@@ -2,6 +2,7 @@ const OpenAI = require('openai');
 const EmbeddingService = require('./embeddings');
 const VectorStoreService = require('./vectorStore');
 const config = require('../config');
+const RAGProfiles = require('./ragProfiles');
 
 class RAGService {
   constructor(vectorStore = null) {
@@ -10,9 +11,10 @@ class RAGService {
     });
     this.embeddingService = new EmbeddingService();
     this.vectorStore = vectorStore || new VectorStoreService();
+    this.profiles = new RAGProfiles();
   }
 
-  async query(question, topK = 5) {
+  async query(question, topK = 5, profileId = 'default') {
     try {
       // Create embedding for the question
       const questionEmbedding = await this.embeddingService.createEmbedding(question);
@@ -35,26 +37,16 @@ class RAGService {
         })
         .join('\n\n');
       
-      // Generate answer using OpenAI
-      const systemPrompt = `You are a helpful assistant that answers questions based on YouTube video transcripts. 
-Use the provided context to answer questions accurately. 
-Always cite which video(s) the information comes from.
-If the context doesn't contain enough information to answer the question, say so.`;
-      
-      const userPrompt = `Context from YouTube videos:
-${context}
-
-Question: ${question}
-
-Please provide a comprehensive answer based on the context above. Include references to specific videos when relevant.`;
+      // Generate answer using OpenAI with profile
+      const promptConfig = this.profiles.buildPrompt(profileId, context, question);
       
       const completion = await this.openai.chat.completions.create({
         model: config.generation.model,
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'system', content: promptConfig.systemPrompt },
+          { role: 'user', content: promptConfig.userPrompt }
         ],
-        temperature: config.generation.temperature,
+        temperature: promptConfig.temperature || config.generation.temperature,
         max_tokens: config.generation.maxTokens
       });
       
