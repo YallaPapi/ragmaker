@@ -5,17 +5,41 @@ class RAGProfiles {
       // Default profile
       default: {
         name: 'Default Assistant',
-        systemPrompt: `You are a helpful assistant that answers questions based on YouTube video transcripts. 
-Use the provided context to answer questions accurately. 
-Always cite which video(s) the information comes from.
-If the context doesn't contain enough information to answer the question, say so.
+        systemPrompt: `You are an expert assistant that analyzes YouTube video transcripts to provide detailed, specific answers with excellent formatting and readability.
 
-Format your responses for readability:
-- Use paragraphs to separate different points
-- Use bullet points for lists
-- Use numbered lists for steps or sequences
-- Keep paragraphs concise and focused`,
-        temperature: 0.7,
+CRITICAL INSTRUCTIONS:
+1. **BE EXTREMELY SPECIFIC** - Use exact details, examples, numbers, names, and quotes from the videos
+2. **PROVIDE COMPREHENSIVE CONTEXT** - Don't just answer the question, explain the full situation around it  
+3. **EXTRACT NUANCED INSIGHTS** - Look for subtle points, implications, and deeper meaning in the content
+4. **USE MULTIPLE SOURCES** - When available, compare and contrast information from different videos
+5. **QUOTE DIRECTLY** - Include actual quotes and specific examples from the creators
+
+DETAILED RESPONSE STRUCTURE:
+- **Start with direct answer** with **key conclusion bolded**
+- **Use section headings** (## Main Topic) to break up different sections
+- **Each section** should have multiple short paragraphs (2-3 sentences each)
+- **Section examples**: ## Key Finding, ## Context, ## Examples, ## Implications, ## Sources
+- **Each main point gets its own paragraph** - never combine multiple ideas
+- Always **bold the video titles** and __underline main conclusions__
+- **End with ## Sources** section listing video citations
+
+ADVANCED FORMATTING EXAMPLES:
+- **Key concepts** should be bolded throughout
+- __Critical conclusions__ should be underlined  
+- *Video titles* and creator names in italics
+- Use backticks for specific numbers, timestamps, or technical terms
+- Break every major idea into **separate short paragraphs**
+- **Never write paragraphs longer than 60 words**
+
+AVOID:
+- Generic advice or common knowledge
+- Vague generalizations  
+- Surface-level summaries
+- Walls of unformatted text
+- Ignoring specific details mentioned in videos
+
+If the context doesn't contain enough specific information, say so explicitly and explain what's missing.`,
+        temperature: 0.6,
         focus: null, // No specific focus
         tone: 'professional'
       },
@@ -204,15 +228,23 @@ Follow the user's custom instructions exactly as specified.`,
     }
     
     // Add enhanced formatting instructions
-    enhancedPrompt += `\nIMPORTANT Formatting requirements:
-- MUST break your response into multiple paragraphs (minimum 3-4 paragraphs for any substantial answer)
-- Each paragraph should cover ONE main point or idea
-- Add TWO line breaks between paragraphs for clear separation
-- Use bullet points (- ) for lists
-- Use numbered lists (1. 2. 3.) for sequential steps
-- Keep paragraphs to 3-5 sentences maximum
-- Start a new paragraph when changing topics or ideas
-- Avoid walls of text at all costs\n\n`;
+    enhancedPrompt += `\nCRITICAL Formatting requirements - MUST FOLLOW:
+- **USE SECTION HEADINGS**: Structure responses with ## Heading format to organize content
+- **AGGRESSIVE PARAGRAPH BREAKING**: Break into MANY short paragraphs (minimum 5-8 paragraphs for substantial answers)
+- **MAXIMUM 2-3 SENTENCES PER PARAGRAPH** - never more than this
+- Each section should have **MULTIPLE paragraphs**, not just one giant block
+- Add **TWO line breaks** between every paragraph for clear separation
+- **EXTENSIVE BOLD FORMATTING**: Use **bold text** liberally for ALL key concepts, important points, names, numbers, and emphasis
+- Use **underline formatting** with __underline text__ for critical information and main conclusions
+- Use *italic text* for quotes, video titles, creator names, and subtle emphasis  
+- Use backticks for technical terms, specific numbers, timestamps, or references
+- Use bullet points (- ) for lists and comparisons
+- Use numbered lists (1. 2. 3.) for sequential steps or rankings
+- **START NEW PARAGRAPHS FREQUENTLY** - when introducing new ideas, examples, or shifting focus
+- **NO WALLS OF TEXT** - if a paragraph exceeds 3 sentences, split it immediately
+- Make **HEAVY use of formatting** to improve readability and draw attention to important information
+- **BOLD THE FIRST KEY PHRASE** of each paragraph when possible
+- **ORGANIZE WITH HEADINGS** like: ## Main Finding, ## Context, ## Key Examples, ## Implications, ## Sources\n\n`;
     
     // Add tone instructions
     switch (profile.tone) {

@@ -13,13 +13,13 @@ module.exports = {
   },
   embedding: {
     model: 'text-embedding-3-small',  // Must match Upstash dimension (1536)
-    chunkSize: 1000,
-    chunkOverlap: 200
+    chunkSize: 500,
+    chunkOverlap: 100
   },
   generation: {
     model: 'gpt-4o-mini',
     temperature: 0.7,
-    maxTokens: 1000
+    maxTokens: 2500
   },
   server: {
     port: process.env.PORT || 3000

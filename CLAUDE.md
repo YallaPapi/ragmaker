@@ -112,4 +112,14 @@ Use Context7 for:
 **This manual must be followed in full for all work on the YouTube Channel RAG Chatbot.**
 - never use websearch, use taskmaster resarch function instead
 - DO NOT CALL PARSE-PRD AND --RESEARCH IN THE SAME FUCKING COMMAND FOR TASKMASTER EVER
-- If we have gotten to the point where we have developed a frontend, then make sure every time you add features on the backend, you are updating the frontend as well
+- If we have gotten to the point where we have developed a frontend, then make sure every time you add features on the backend, you are updating the frontend as well[byterover-mcp]
+
+# important 
+always use byterover-retrieve-knowledge tool to get the related context before any tasks 
+always use byterover-store-knowledge to store all the critical informations after sucessful tasks
+
+## Task Master AI Instructions
+**Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.taskmaster/CLAUDE.md
+
+- every time you make a local change to fix something, restart the local server so i can test

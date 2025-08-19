@@ -649,7 +649,7 @@
 <body>
     <div class="main-container">
         <div class="header">
-            <h1>📚 YouTube RAG Knowledge Base <span id="projectNameDisplay" style="font-size: 0.8em; opacity: 0.8;"></span></h1>
+            <h1>📚 YouTube RAG Knowledge Base <span id="projectNameDisplay" style="font-size: 0.8em; opacity: 0.8;"></span> <button id="editProjectNameBtn" onclick="editProjectName()" style="display: none; font-size: 0.6em; padding: 2px 8px; margin-left: 10px; background: rgba(255,255,255,0.2); border: none; border-radius: 4px; color: white; cursor: pointer;">✏️ Edit</button></h1>
             <div style="display: flex; align-items: center; gap: 20px;">
                 <div id="quotaStatus" style="padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 8px; font-size: 14px;">
                     <span>📊 Quota: <span id="quotaUsage">--</span></span>
@@ -670,6 +670,7 @@
             <button class="tab" onclick="switchTab('videos')">🎬 Videos</button>
             <button class="tab" onclick="switchTab('logs')">📝 Logs</button>
             <button class="tab" onclick="switchTab('analytics')">📊 Analytics</button>
+            <button class="tab" onclick="switchTab('debug')">🔍 Debug Terminal</button>
         </div>
 
         <!-- Chat Tab -->
@@ -862,6 +863,18 @@ https://www.youtube.com/@channel3"
                 <canvas id="analyticsChart"></canvas>
             </div>
         </div>
+
+        <!-- Debug Terminal Tab -->
+        <div id="debug-tab" class="tab-content">
+            <h2>🔍 RAG Debug Terminal</h2>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button onclick="clearDebugTerminal()" style="padding: 8px 16px; background: #ff4444; color: white; border: none; border-radius: 4px; cursor: pointer;">Clear Terminal</button>
+                <button onclick="toggleAutoScroll()" id="autoScrollBtn" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Auto-scroll: ON</button>
+            </div>
+            <div id="debugTerminal" style="background: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace; font-size: 12px; padding: 20px; border-radius: 8px; height: 600px; overflow-y: auto; white-space: pre-wrap; border: 2px solid #333;">
+                <div style="color: #888;">RAG Debug Terminal Ready. Debug info will appear here when you ask questions.</div>
+            </div>
+        </div>
     </div>
 
     <!-- New Project Modal -->
@@ -954,6 +967,7 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         <div class="modal-content">
             <h3>Re-index Channel</h3>
             <p id="reindexChannelName"></p>
+            <input type="hidden" id="reindexChannelId">
             <div style="margin: 10px 0;">
                 <label><input type="checkbox" id="reindexSkipExisting" checked> Only index new videos</label>
             </div>
@@ -962,7 +976,7 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
             </div>
             <div class="modal-buttons">
                 <button onclick="closeReindexDialog()" class="secondary">Cancel</button>
-                <button id="reindexButton" onclick="confirmReindex()">Re-index</button>
+                <button id="reindexButton" onclick="startReindex(event)">Re-index</button>
             </div>
         </div>
     </div>
@@ -1857,7 +1871,11 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
             `;
             
             try {
-                const payload = { question, profileId };
+                const payload = { 
+                    question, 
+                    profileId,
+                    projectId: currentProject?.id // Add current project context
+                };
                 if (profileId === 'custom' && customInstructions) {
                     payload.customInstructions = customInstructions;
                 }
@@ -1870,10 +1888,69 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
                 
                 const data = await response.json();
                 
+                // Send debug info to terminal
+                console.log('Chat response data:', data); // Debug log
+                
+                // Always add the question to debug terminal
+                addDebugLine(`Question asked: "${question}"`, '#00ffff');
+                
+                if (data.debug) {
+                    console.log('Debug data found:', data.debug); // Debug log
+                    
+                    // Check if debug contains error
+                    if (data.debug.error) {
+                        addDebugLine(`ERROR: ${data.debug.error}`, '#ff0000');
+                    }
+                    
+                    // Display chunks info
+                    const chunkCount = data.debug.chunksCount || 0;
+                    addDebugLine(`Retrieved ${chunkCount} chunks from knowledge base`, '#00ff88');
+                    
+                    // Display context if available
+                    if (data.debug.context && data.debug.context !== 'ERROR: Could not retrieve context') {
+                        addDebugSection('Retrieved Context', data.debug.context.substring(0, 500) + '...', '#88ff88');
+                    }
+                    
+                    // Display prompts if available
+                    if (data.debug.systemPrompt && !data.debug.systemPrompt.startsWith('ERROR:')) {
+                        addDebugSection('System Prompt', data.debug.systemPrompt.substring(0, 300) + '...', '#ff00ff');
+                    }
+                    
+                    if (data.debug.userPrompt && !data.debug.userPrompt.startsWith('ERROR:')) {
+                        addDebugSection('User Prompt', data.debug.userPrompt, '#ffff00');
+                    }
+                    
+                    // Display profile info
+                    addDebugLine(`Profile: ${data.debug.profileId}`, '#00dddd');
+                    
+                } else {
+                    console.log('No debug data in response'); // Debug log
+                    addDebugLine('WARNING: No debug data received from server', '#ff8800');
+                    addDebugLine('This may indicate a server-side issue', '#ff8800');
+                }
+                
                 document.getElementById('loadingMessage').remove();
                 
-                // Format the answer with proper paragraph breaks
+                // Format the answer with proper paragraph breaks and markdown
                 let formattedAnswer = data.answer;
+                
+                // Convert markdown formatting to HTML
+                // Bold: **text** → <strong>text</strong>
+                formattedAnswer = formattedAnswer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // Underline: __text__ → <u>text</u> (underline, not bold)
+                formattedAnswer = formattedAnswer.replace(/__(.*?)__/g, '<u style="text-decoration: underline; font-weight: bold;">$1</u>');
+                
+                // Italic: *text* or _text_ → <em>text</em>
+                formattedAnswer = formattedAnswer.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                formattedAnswer = formattedAnswer.replace(/_(.*?)_/g, '<em>$1</em>');
+                
+                // Code snippets: `code` → <code>code</code>
+                formattedAnswer = formattedAnswer.replace(/`(.*?)`/g, '<code style="background: #f1f1f1; padding: 2px 4px; border-radius: 3px; font-family: monospace;">$1</code>');
+                
+                // Headers: ## Heading → <h3>Heading</h3>
+                formattedAnswer = formattedAnswer.replace(/^## (.*$)/gm, '<h3 style="color: #667eea; font-size: 18px; font-weight: bold; margin: 20px 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid #667eea;">$1</h3>');
+                
                 // Convert line breaks to paragraphs
                 formattedAnswer = formattedAnswer.replace(/\n\n/g, '</p><p>');
                 formattedAnswer = formattedAnswer.replace(/\n/g, '<br>');
@@ -2078,55 +2155,16 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
             }
         }
         
-        // Re-index dialog functions
-        let reindexChannelId = null;
+        // Re-index dialog functions (main implementation)
         
         function showReindexDialog(channelId, channelName) {
-            reindexChannelId = channelId;
+            console.log('Opening reindex dialog for:', channelId, channelName);
+            document.getElementById('reindexChannelId').value = channelId;
             document.getElementById('reindexChannelName').textContent = `Re-index ${channelName}?`;
             document.getElementById('reindexDialog').style.display = 'flex';
         }
         
-        function closeReindexDialog() {
-            document.getElementById('reindexDialog').style.display = 'none';
-            reindexChannelId = null;
-        }
         
-        async function confirmReindex() {
-            if (!reindexChannelId) return;
-            
-            const skipExisting = document.getElementById('reindexSkipExisting').checked;
-            const excludeShorts = document.getElementById('reindexExcludeShorts').checked;
-            
-            closeReindexDialog();
-            
-            // Clear and reuse the main indexing UI
-            document.getElementById('channelId').value = reindexChannelId;
-            document.getElementById('excludeShortsMain').checked = excludeShorts;
-            
-            try {
-                const response = await fetch('/api/index-channel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        channelId: reindexChannelId,
-                        skipExisting,
-                        excludeShorts
-                    })
-                });
-                
-                if (response.ok) {
-                    alert('Re-indexing started!');
-                    // Monitor progress
-                    monitorIndexing();
-                } else {
-                    const error = await response.json();
-                    alert('Failed to start re-indexing: ' + error.error);
-                }
-            } catch (error) {
-                alert('Error starting re-index: ' + error.message);
-            }
-        }
         
         // Export knowledge base
         async function exportKnowledgeBase() {
@@ -2157,35 +2195,83 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         // Update project name display
         function updateProjectNameDisplay(projectName) {
             const display = document.getElementById('projectNameDisplay');
-            if (display) {
+            const editBtn = document.getElementById('editProjectNameBtn');
+            if (display && editBtn) {
                 if (projectName) {
                     display.textContent = `- ${projectName}`;
+                    editBtn.style.display = 'inline-block';
                 } else {
                     display.textContent = '';
+                    editBtn.style.display = 'none';
                 }
             }
         }
         
-        // Re-index dialog functionality
-        function showReindexDialog(channelId, channelName) {
-            const dialog = document.getElementById('reindexDialog');
-            document.getElementById('reindexChannelName').textContent = channelName;
-            document.getElementById('reindexChannelId').value = channelId;
-            dialog.style.display = 'flex';
-        }
+        // Re-index dialog functionality (duplicate removed)
         
         function closeReindexDialog() {
+            console.log('Closing reindex dialog');
             document.getElementById('reindexDialog').style.display = 'none';
-            document.getElementById('reindexVideoLimit').value = '';
-            document.getElementById('excludeShorts').checked = false;
         }
         
-        async function startReindex() {
-            const channelId = document.getElementById('reindexChannelId').value;
-            const videoLimit = parseInt(document.getElementById('reindexVideoLimit').value) || null;
-            const excludeShorts = document.getElementById('excludeShorts').checked;
+        async function startReindex(event) {
+            console.log('startReindex called');
+            
+            // Small delay to ensure DOM is fully rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Debug: Check all elements
+            const channelIdElement = document.getElementById('reindexChannelId');
+            const skipExistingElement = document.getElementById('reindexSkipExisting');
+            const excludeShortsElement = document.getElementById('reindexExcludeShorts');
+            
+            console.log('Elements found:', {
+                channelIdElement: !!channelIdElement,
+                skipExistingElement: !!skipExistingElement,
+                excludeShortsElement: !!excludeShortsElement
+            });
+            
+            if (channelIdElement) {
+                console.log('channelId value:', channelIdElement.value);
+            }
+            
+            if (!channelIdElement) {
+                console.error('reindexChannelId element not found');
+                alert('Error: reindexChannelId element missing. Check console for details.');
+                return;
+            }
+            
+            if (!skipExistingElement) {
+                console.error('reindexSkipExisting element not found');
+                alert('Error: reindexSkipExisting element missing. Check console for details.');
+                return;
+            }
+            
+            if (!excludeShortsElement) {
+                console.error('reindexExcludeShorts element not found');  
+                alert('Error: reindexExcludeShorts element missing. Check console for details.');
+                return;
+            }
+            
+            const channelId = channelIdElement.value;
+            const skipExisting = skipExistingElement.checked;
+            const excludeShorts = excludeShortsElement.checked;
+            
+            console.log('Values retrieved:', { channelId, skipExisting, excludeShorts });
+            
+            if (!channelId) {
+                alert('Error: No channel selected for reindex. Please select a channel first.');
+                return;
+            }
             
             const button = document.getElementById('reindexButton');
+            if (!button) {
+                console.error('reindexButton not found');
+                alert('Error: Reindex button not found');
+                return;
+            }
+            
+            console.log('Button found:', button);
             button.disabled = true;
             button.textContent = 'Starting re-index...';
             
@@ -2195,8 +2281,7 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         channelId,
-                        videoLimit,
-                        skipExisting: true,
+                        skipExisting,
                         excludeShorts
                     })
                 });
@@ -2213,8 +2298,10 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
             } catch (error) {
                 alert('Error starting re-index: ' + error.message);
             } finally {
-                button.disabled = false;
-                button.textContent = 'Start Re-index';
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Re-index';
+                }
             }
         }
         
@@ -2278,6 +2365,13 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
         loadAutoRefreshSettings();
         startQuotaMonitoring();
         
+        // Test debug terminal after a short delay
+        setTimeout(() => {
+            addDebugLine('Debug terminal initialized successfully!', '#00ff00');
+            addDebugLine('Ready to capture RAG pipeline debug information', '#888888');
+            addDebugLine('Ask a question to see debug data in real-time', '#888888');
+        }, 1000);
+        
         // Check for stuck indexing on page load
         (async () => {
             try {
@@ -2313,6 +2407,111 @@ UCxxxxxxxxxxxxxxxxxxxxxx"></textarea>
                 startQuotaMonitoring();
             }
         });
+
+        // Project name editing functions
+        function editProjectName() {
+            if (!currentProject) return;
+            
+            document.getElementById('editProjectNameInput').value = currentProject.name;
+            document.getElementById('editProjectNameModal').style.display = 'flex';
+        }
+
+        function closeEditProjectNameModal() {
+            document.getElementById('editProjectNameModal').style.display = 'none';
+        }
+
+        async function saveProjectName() {
+            const newName = document.getElementById('editProjectNameInput').value.trim();
+            if (!newName) {
+                alert('Please enter a project name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/projects/${currentProject.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    currentProject.name = newName;
+                    updateProjectNameDisplay(newName);
+                    closeEditProjectNameModal();
+                    loadProjects(); // Refresh the project dropdown
+                } else {
+                    alert('Error updating project name: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Debug Terminal Functions
+        let autoScroll = true;
+
+        function clearDebugTerminal() {
+            const terminal = document.getElementById('debugTerminal');
+            terminal.innerHTML = '<div style="color: #888;">Terminal cleared. Debug info will appear here when you ask questions.</div>';
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.textContent = `Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            btn.style.background = autoScroll ? '#4CAF50' : '#888';
+        }
+
+        function addDebugLine(message, color = '#00ff00') {
+            const terminal = document.getElementById('debugTerminal');
+            const line = document.createElement('div');
+            line.style.color = color;
+            line.style.marginBottom = '2px';
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            terminal.appendChild(line);
+
+            if (autoScroll) {
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+
+        function addDebugSection(title, content, color = '#ffff00') {
+            const terminal = document.getElementById('debugTerminal');
+            
+            // Add section header
+            const header = document.createElement('div');
+            header.style.color = color;
+            header.style.fontWeight = 'bold';
+            header.style.marginTop = '10px';
+            header.style.marginBottom = '5px';
+            header.textContent = `=== ${title} ===`;
+            terminal.appendChild(header);
+            
+            // Add content
+            const contentDiv = document.createElement('div');
+            contentDiv.style.color = '#ffffff';
+            contentDiv.style.whiteSpace = 'pre-wrap';
+            contentDiv.style.marginLeft = '10px';
+            contentDiv.textContent = content;
+            terminal.appendChild(contentDiv);
+
+            if (autoScroll) {
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
     </script>
+
+    <!-- Edit Project Name Modal -->
+    <div id="editProjectNameModal" class="modal">
+        <div class="modal-content">
+            <h3>Edit Project Name</h3>
+            <input type="text" id="editProjectNameInput" placeholder="Project Name" style="width: 100%; margin-bottom: 15px;">
+            <div class="modal-buttons">
+                <button onclick="closeEditProjectNameModal()" class="secondary">Cancel</button>
+                <button onclick="saveProjectName()">Save</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

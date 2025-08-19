@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Reindex</title>
+</head>
+<body>
+    <h1>Reindex Test</h1>
+    
+    <div>
+        <input type="text" id="testChannelId" placeholder="Enter channel ID" value="UCtest123">
+        <button onclick="testReindex()">Test Reindex</button>
+    </div>
+    
+    <div id="output" style="margin-top: 20px; padding: 10px; background: #f0f0f0;"></div>
+    
+    <script>
+        async function testReindex() {
+            const output = document.getElementById('output');
+            const channelId = document.getElementById('testChannelId').value;
+            
+            output.innerHTML = 'Testing reindex...';
+            
+            try {
+                const response = await fetch('/api/index-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channelId: channelId,
+                        skipExisting: false,
+                        excludeShorts: true
+                    })
+                });
+                
+                const result = await response.json();
+                
+                output.innerHTML = `
+                    <strong>Response Status:</strong> ${response.status}<br>
+                    <strong>Result:</strong> ${JSON.stringify(result, null, 2)}
+                `;
+                
+            } catch (error) {
+                output.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
