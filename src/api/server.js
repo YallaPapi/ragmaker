@@ -29,6 +29,9 @@ app.locals.upstashManager = upstashManager;
 app.locals.youtubeService = youtubeService;
 app.locals.embeddingService = embeddingService;
 
+// Progress tracking storage
+const indexingProgress = new Map();
+
 // Import and use public routes
 const publicRoutes = require('./routes/public');
 app.use(publicRoutes);
@@ -126,17 +129,16 @@ app.post('/api/index-channel', async (req, res) => {
   }
   
   if (indexingStatus.isIndexing) {
-    return res.status(409).json({ error: 'Already indexing a channel' });
-  }
-  
-  // Check if channel already indexed (only block if not skipping existing)
-  if (!skipExisting && channelManager.isChannelIndexed(channelId)) {
-    return res.status(200).json({ 
-      message: 'Channel already indexed', 
-      channelId,
-      alreadyIndexed: true 
+    // Return success with current channel info so frontend can show progress
+    return res.json({ 
+      message: 'Indexing already in progress',
+      channelId: indexingStatus.channelId,
+      showProgress: true
     });
   }
+  
+  // Note: For re-indexing, we allow processing regardless of whether channel is already indexed
+  // The skipExisting parameter controls whether to re-process existing videos
   
   // Start indexing in background - ensure arrays are initialized
   indexingStatus = {
@@ -166,7 +168,19 @@ app.post('/api/index-channel', async (req, res) => {
     try {
       // Fetch transcripts with custom limit or all videos
       indexingStatus.message = 'Fetching channel videos...';
+      indexingStatus.currentStep = 'Fetching channel information and video list...';
       indexingStatus.startTime = new Date().toISOString();
+      
+      // Initialize progress tracking
+      indexingProgress.set(channelId, {
+        status: 'Starting...',
+        processed: 0,
+        total: 0,
+        currentStep: 'Fetching channel information...',
+        percentage: 0,
+        completed: false,
+        failed: false
+      });
       
       // Pass options to YouTube service
       const options = {
@@ -179,11 +193,23 @@ app.post('/api/index-channel', async (req, res) => {
       const { channelInfo, transcripts, failed, totalVideos, processedVideos } = result;
       
       indexingStatus.totalVideos = processedVideos;
+      indexingStatus.currentStep = `Found ${transcripts.length} videos with transcripts to process`;
       // Add initial failed videos (no transcript available)
       if (failed && failed.length > 0) {
         indexingStatus.failedVideos = [...failed];
       }
       indexingStatus.progress = 20;
+      
+      // Update progress tracking
+      indexingProgress.set(channelId, {
+        status: 'Processing transcripts...',
+        processed: 0,
+        total: transcripts.length,
+        currentStep: `Found ${transcripts.length} videos to process`,
+        percentage: 20,
+        completed: false,
+        failed: false
+      });
       
       if (transcripts.length === 0) {
         const errorMsg = failed && failed.length > 0 
@@ -207,8 +233,21 @@ app.post('/api/index-channel', async (req, res) => {
         
         const video = transcripts[i];
         indexingStatus.message = `Processing video ${i + 1}/${transcripts.length}: ${video.title}`;
+        indexingStatus.currentStep = `Creating embeddings for: ${video.title}`;
         indexingStatus.processedVideos = i + 1;
         indexingStatus.progress = 20 + Math.floor((i / transcripts.length) * 50);
+        
+        // Update progress tracking
+        const currentPercentage = 20 + Math.floor((i / transcripts.length) * 50);
+        indexingProgress.set(channelId, {
+          status: 'Processing videos...',
+          processed: i + 1,
+          total: transcripts.length,
+          currentStep: `Creating embeddings for: ${video.title?.substring(0, 50) || 'Unknown video'}${video.title?.length > 50 ? '...' : ''}`,
+          percentage: currentPercentage,
+          completed: false,
+          failed: false
+        });
         
         try {
           // Make sure video has transcript property
@@ -253,6 +292,19 @@ app.post('/api/index-channel', async (req, res) => {
       
       // Index to vector store (ADDS to existing data)
       indexingStatus.message = 'Adding to knowledge base...';
+      indexingStatus.currentStep = 'Storing embeddings in vector database...';
+      
+      // Update progress tracking
+      indexingProgress.set(channelId, {
+        status: 'Finalizing...',
+        processed: transcripts.length,
+        total: transcripts.length,
+        currentStep: 'Storing embeddings in vector database...',
+        percentage: 80,
+        completed: false,
+        failed: false
+      });
+      
       await vectorStore.indexChannel(embeddings);
       indexingStatus.progress = 100;
       
@@ -284,6 +336,18 @@ app.post('/api/index-channel', async (req, res) => {
       indexingStatus.isIndexing = false;
       indexingStatus.progress = 100;
       indexingStatus.message = `Successfully indexed ${indexingStatus.successVideos.length} videos, ${indexingStatus.failedVideos.length} failed`;
+      indexingStatus.currentStep = 'Indexing completed successfully!';
+      
+      // Mark progress as completed
+      indexingProgress.set(channelId, {
+        status: 'Completed!',
+        processed: transcripts.length,
+        total: transcripts.length,
+        currentStep: `Successfully indexed ${indexingStatus.successVideos.length} videos`,
+        percentage: 100,
+        completed: true,
+        failed: false
+      });
       
       // Save to logs
       const logEntry = {
@@ -312,8 +376,22 @@ app.post('/api/index-channel', async (req, res) => {
         successVideos: [],
         failedVideos: [],
         startTime: null,
-        endTime: null
+        endTime: null,
+        currentStep: 'Failed with error',
+        error: error.message
       };
+      
+      // Mark progress as failed
+      indexingProgress.set(channelId, {
+        status: 'Failed',
+        processed: 0,
+        total: 0,
+        currentStep: `Error: ${error.message}`,
+        percentage: 0,
+        completed: false,
+        failed: true,
+        error: error.message
+      });
     } finally {
       activeIndexingJob = null;
     }
@@ -847,6 +925,45 @@ loadAutoRefreshSettings().then(() => {
   if (autoRefreshSettings.enabled) {
     scheduleAutoRefresh();
   }
+});
+
+// Progress tracking endpoint
+app.get('/api/indexing-progress/:channelId', (req, res) => {
+  const { channelId } = req.params;
+  
+  // Check new progress tracking system first
+  if (indexingProgress.has(channelId)) {
+    return res.json(indexingProgress.get(channelId));
+  }
+  
+  // Fall back to old indexingStatus if it matches the channel
+  if (indexingStatus.channelId === channelId) {
+    const progress = {
+      status: indexingStatus.message || 'Processing...',
+      processed: indexingStatus.processedVideos || 0,
+      total: indexingStatus.totalVideos || 0,
+      currentStep: indexingStatus.currentStep || 'Working...',
+      percentage: indexingStatus.totalVideos > 0 
+        ? Math.round((indexingStatus.processedVideos / indexingStatus.totalVideos) * 100)
+        : 0,
+      completed: !indexingStatus.isIndexing && indexingStatus.processedVideos > 0,
+      failed: !indexingStatus.isIndexing && indexingStatus.processedVideos === 0 && indexingStatus.totalVideos > 0,
+      error: indexingStatus.error
+    };
+    
+    return res.json(progress);
+  }
+  
+  // No progress found
+  res.json({
+    status: 'Not found',
+    processed: 0,
+    total: 0,
+    currentStep: 'No indexing in progress',
+    percentage: 0,
+    completed: false,
+    failed: false
+  });
 });
 
 // Start server
