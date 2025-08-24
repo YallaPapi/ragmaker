@@ -145,6 +145,18 @@ class UpstashManager {
     return true;
   }
 
+  async updateProject(projectId, updates) {
+    const project = this.projects[projectId];
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    
+    // Update the project with new data
+    Object.assign(project, updates);
+    await this.saveProjects();
+    return project;
+  }
+
   async switchProject(projectId) {
     if (!this.projects[projectId]) {
       throw new Error('Project not found');
@@ -153,12 +165,9 @@ class UpstashManager {
     this.currentProject = projectId;
     await this.saveProjects();
     
-    // Update environment for current session
+    // Note: Environment variables are NOT modified for security reasons
+    // Services should call getProjectCredentials() to get current project settings
     const project = this.projects[projectId];
-    if (project.type === 'database') {
-      process.env.UPSTASH_VECTOR_REST_URL = project.endpoint;
-      process.env.UPSTASH_VECTOR_REST_TOKEN = project.token;
-    }
     
     return project;
   }

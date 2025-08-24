@@ -1,0 +1,22 @@
+[
+  {
+    "fileName": "main-overview.mdc",
+    "description": "Complete system overview documenting the AI-driven task management architecture, component interactions, and core subsystems including AI service integration, task analysis, and dependency management"
+  },
+  {
+    "fileName": "task-analysis-algorithms.mdc",
+    "description": "Detailed documentation of core algorithms including task complexity scoring (1-10 scale), dependency resolution, AI-driven task generation, and scope adjustment algorithms with implementation details"
+  },
+  {
+    "fileName": "data-models.mdc",
+    "description": "Comprehensive documentation of task data models, their relationships, inheritance patterns, and state transitions including task/subtask relationships, dependency mappings, and tag-based organization"
+  },
+  {
+    "fileName": "ai-service-integration.mdc",
+    "description": "Technical documentation of AI service integration including provider management, prompt engineering, response handling, and the Model Context Protocol (MCP) implementation details"
+  },
+  {
+    "fileName": "task-workflow-dataflow.mdc",
+    "description": "Detailed documentation of task lifecycle workflows, data flow between components, state management, and system-wide data synchronization patterns"
+  }
+]

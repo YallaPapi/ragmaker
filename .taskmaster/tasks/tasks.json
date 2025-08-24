@@ -176,11 +176,67 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Implement YouTube Transcript Reliability Improvements",
+        "description": "Enhance the YouTube transcript fetching system to reduce failures by implementing retries, language selection, and failure categorization without using Whisper or rate limiting.",
+        "details": "This task focuses on improving the reliability of YouTube transcript fetching without relying on Whisper fallback or rate limiting mechanisms. Implementation steps include:\n\n1. Add a configurable retry mechanism for transcript fetching:\n   - Implement exponential backoff strategy for retries (e.g., wait 1s, then 2s, then 4s)\n   - Set maximum retry attempts (default: 3)\n   - Add delay between retry attempts to avoid overloading the API\n\n2. Implement intelligent track selection:\n   - Add support for fetching transcripts in multiple languages\n   - Prioritize manual transcripts over auto-generated ones\n   - Implement fallback logic to try auto-generated tracks when manual ones fail\n   - Create a language preference hierarchy (user-specified language → video language → English → any available)\n\n3. Categorize transcript fetch failures:\n   - Create an enum of failure categories:\n     ```typescript\n     enum TranscriptFetchFailureReason {\n       NO_TRANSCRIPTS_AVAILABLE = 'no_transcripts_available',\n       NETWORK_ERROR = 'network_error',\n       PARSING_ERROR = 'parsing_error',\n       RATE_LIMITED = 'rate_limited',\n       PERMISSION_DENIED = 'permission_denied',\n       UNKNOWN = 'unknown'\n     }\n     ```\n   - Add logic to determine and record the specific failure reason\n   - Implement different handling strategies based on failure category\n\n4. Expose failure statistics in API:\n   - Modify the channel video details endpoint to include transcript fetch statistics\n   - Add counts for each failure category\n   - Include success rate percentage\n   - Add timestamp of last successful transcript fetch\n\n5. Update database schema to store failure information:\n   ```sql\n   ALTER TABLE video_transcripts \n   ADD COLUMN fetch_attempts INT DEFAULT 0,\n   ADD COLUMN last_fetch_attempt TIMESTAMP,\n   ADD COLUMN failure_reason VARCHAR(50),\n   ADD COLUMN is_auto_generated BOOLEAN,\n   ADD COLUMN transcript_language VARCHAR(10);\n   ```\n\n6. Implement logging for transcript fetch attempts:\n   - Log each attempt with timestamp, video ID, and result\n   - Create aggregated logs for failure analysis\n   - Add monitoring for unusual failure patterns\n\nThe implementation should maintain the existing functionality while improving reliability without enabling the rate limiter.",
+        "testStrategy": "1. Unit tests:\n   - Test retry mechanism with mocked YouTube API responses\n   - Test language selection logic with various language availability scenarios\n   - Test failure categorization with different error responses\n   - Test statistics calculation functions\n\n2. Integration tests:\n   - Test end-to-end transcript fetching with real YouTube videos\n   - Test the system with videos known to have different transcript availability\n   - Verify correct handling of videos with multiple language tracks\n   - Test with videos that have only auto-generated transcripts\n\n3. Failure scenario testing:\n   - Simulate network errors and verify correct retry behavior\n   - Test with rate-limited responses to ensure proper categorization\n   - Verify behavior with videos that have no available transcripts\n   - Test with malformed transcript data to verify error handling\n\n4. API endpoint testing:\n   - Verify the channel video details endpoint returns correct failure statistics\n   - Test with channels having various transcript success/failure rates\n   - Validate the format and accuracy of the returned statistics\n\n5. Performance testing:\n   - Measure impact of retry mechanism on overall indexing time\n   - Test with large channels to ensure the system scales properly\n   - Verify memory usage remains stable during extended operations\n\n6. Regression testing:\n   - Ensure existing transcript functionality continues to work\n   - Verify that disabling the rate limiter doesn't cause other issues\n   - Test compatibility with existing transcript processing pipelines",
+        "status": "pending",
+        "dependencies": [
+          11,
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Fix Re-index Button JavaScript Event Error",
+        "description": "Investigate and resolve the frontend re-index button error where 'event' is undefined, preventing re-indexing functionality from working.",
+        "details": "Begin by reviewing the re-index button's event handler implementation in the frontend code. Ensure that the event object is properly passed to the handler function, especially if the handler is invoked via an inline function or as a callback. Refactor the handler to use 'event.currentTarget' instead of 'event.target' to reliably reference the button element, as 'event.target' may be undefined or refer to a child element (e.g., icon or span) in certain cases[4]. For TypeScript projects, explicitly type the event parameter and use type casting (e.g., 'event as React.MouseEvent<HTMLButtonElement>') to access button-specific properties safely[1]. Add defensive checks to ensure 'event' is always defined before accessing its properties[2]. Test the handler across browsers and UI frameworks (e.g., React, Semantic UI) to confirm consistent behavior. Update any related documentation and code comments to clarify event handling best practices.",
+        "testStrategy": "1. Unit test the re-index button handler to verify it receives the event object and correctly accesses 'currentTarget'.\n2. Simulate user clicks on the re-index button, including clicks on child elements (icons, spans), and confirm the handler works without errors.\n3. Test in multiple browsers and devices to ensure cross-compatibility.\n4. If using React, verify with both synthetic and native events.\n5. Perform regression testing to ensure re-indexing functionality is restored and no new errors are introduced.",
+        "status": "done",
+        "dependencies": [
+          11
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Fix Re-index Endpoint Parameter Mismatch for skipExisting and excludeShorts",
+        "description": "Investigate and resolve the parameter mismatch between frontend and backend in the re-index endpoint, ensuring correct handling of skipExisting and excludeShorts to prevent 'no transcripts or captions disabled' errors.",
+        "details": "Begin by reviewing the frontend code responsible for invoking the re-index API, specifically focusing on how the skipExisting and excludeShorts parameters are constructed and passed in the request payload. Cross-check the parameter names, types, and default values against the backend API specification and implementation. On the backend, audit the endpoint handler to confirm it correctly parses and applies these parameters, including any defaulting or validation logic. Ensure that both parameters are consistently named (e.g., camelCase vs. snake_case) and that their values are properly interpreted (e.g., boolean vs. string). Add robust input validation and clear error messages for missing or malformed parameters. Update API documentation to reflect the correct parameter usage. Where possible, use TypeScript or OpenAPI (Swagger) schemas to enforce parameter contracts between frontend and backend. Consider adding integration tests that simulate various combinations of skipExisting and excludeShorts to verify end-to-end correctness. Follow best practices for API parameter validation and error handling to prevent silent failures and improve debuggability.",
+        "testStrategy": "1. Write unit tests for the backend endpoint to verify correct parsing and handling of skipExisting and excludeShorts, including edge cases (e.g., missing, null, or incorrectly typed values).\n2. Implement frontend integration tests that trigger the re-index action with different parameter combinations and assert that the backend receives and processes them as expected.\n3. Manually test the re-index workflow in the UI, confirming that toggling skipExisting and excludeShorts produces the intended backend behavior and does not result in 'no transcripts or captions disabled' errors.\n4. Review API logs to ensure parameter values are correctly logged and errors are descriptive.\n5. Validate that API documentation and frontend code comments accurately describe parameter usage.",
+        "status": "done",
+        "dependencies": [
+          11,
+          22
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 24,
+        "title": "Revamp Re-index Functionality to Support True Re-indexing and Flexible Video Selection",
+        "description": "Redesign the re-index feature to allow actual re-indexing of existing videos, providing options for re-indexing all, only new, or specific videos, and update the UI to accurately reflect these capabilities.",
+        "details": "Refactor both backend and frontend to support three distinct re-indexing modes:\n\n1. **Re-index all videos (default):** Ensure the backend processes all videos, regardless of their current index status, overwriting or updating existing index entries as needed. Remove or override any logic that skips already indexed videos when this mode is selected.\n\n2. **Index only new videos:** Retain the current incremental indexing logic, where only videos not present in the index are processed. This should be an explicit user-selectable option, not the default.\n\n3. **Re-index specific videos:** Add support for users to specify a list of video IDs to re-index. Update the backend API to accept an array of video IDs and process only those, regardless of their current status.\n\nUpdate the frontend UI to clearly present these three options, using radio buttons or a dropdown, and provide contextual help/tooltips explaining each mode. Ensure the default selection is 'Re-index all videos.'\n\nUpdate API documentation and ensure parameter names and behaviors are consistent across frontend and backend. Follow best practices for index management, such as ensuring atomicity of re-index operations and providing progress feedback to the user[3][5].\n\nConsider adding logging and audit trails for re-index operations to facilitate debugging and compliance. Ensure that re-indexing does not degrade system performance by implementing batching or throttling if necessary, especially for large video sets.",
+        "testStrategy": "1. Unit tests for backend re-index logic covering all three modes: all, new, and specific videos, including edge cases (e.g., empty selection, all videos already indexed).\n2. Integration tests simulating user actions for each re-index mode, verifying correct API calls and backend behavior.\n3. UI tests to confirm that the new options are visible, selectable, and that contextual help is accurate.\n4. Regression tests to ensure that previous bugs (e.g., parameter mismatches, event handling errors) do not recur.\n5. Performance tests for large-scale re-indexing to ensure system stability and responsiveness.\n6. Manual verification that audit logs and progress indicators are accurate and complete.",
+        "status": "in-progress",
+        "dependencies": [
+          11,
+          22,
+          23
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-08-18T02:23:00.492Z",
-      "updated": "2025-08-18T03:27:44.617Z",
+      "updated": "2025-08-20T02:05:57.492Z",
       "description": "Tasks for master context"
     }
   }

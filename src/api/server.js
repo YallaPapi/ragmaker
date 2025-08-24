@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
 const config = require('../config');
@@ -9,6 +8,12 @@ const VectorStoreService = require('../services/vectorStore');
 const RAGService = require('../services/rag');
 const ChannelManager = require('../services/channelManager');
 const UpstashManager = require('../services/upstashManager');
+const validation = require('../utils/validation');
+
+// Security middleware
+const { setupSecurity } = require('../middleware/security');
+const { requireApiKey, requireAdminConfirmation } = require('../middleware/auth');
+const { devFriendlyApiKey } = require('../middleware/dev-auth');
 
 const app = express();
 
@@ -18,9 +23,11 @@ const embeddingService = new EmbeddingService();
 const channelManager = new ChannelManager();
 const upstashManager = new UpstashManager();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security setup (must be first)
+setupSecurity(app);
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../../public')));
 
 // Store services in app locals for route access
@@ -32,9 +39,18 @@ app.locals.embeddingService = embeddingService;
 // Progress tracking storage
 const indexingProgress = new Map();
 
-// Import and use public routes
+// Import routes
 const publicRoutes = require('./routes/public');
-app.use(publicRoutes);
+const docsRoutes = require('./routes/docs');
+
+// Documentation and health routes (no auth required)
+app.use('/', docsRoutes);
+
+// Apply API key authentication to all /api routes (dev-friendly)
+app.use('/api', devFriendlyApiKey);
+
+// Public API routes  
+app.use('/api', publicRoutes);
 
 // Initialize vector store with current project
 let vectorStore = null;
@@ -122,10 +138,14 @@ loadLogs();
 
 // Index a YouTube channel (adds to existing knowledge base)
 app.post('/api/index-channel', async (req, res) => {
-  const { channelId, videoLimit, skipExisting = false, excludeShorts = false } = req.body;
-  
-  if (!channelId) {
-    return res.status(400).json({ error: 'Channel ID is required' });
+  try {
+    // Validate and sanitize inputs
+    const channelId = validation.validateChannelId(req.body.channelId);
+    const videoLimit = validation.validateVideoLimit(req.body.videoLimit);
+    const skipExisting = validation.validateBoolean(req.body.skipExisting, false);
+    const excludeShorts = validation.validateBoolean(req.body.excludeShorts, false);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
   
   if (indexingStatus.isIndexing) {
@@ -465,10 +485,10 @@ app.post('/api/reset-indexing', (req, res) => {
 
 // Query the RAG system
 app.post('/api/query', async (req, res) => {
-  const { question } = req.body;
-  
-  if (!question) {
-    return res.status(400).json({ error: 'Question is required' });
+  try {
+    const question = validation.validateQuery(req.body.question);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
   
   try {
@@ -482,10 +502,12 @@ app.post('/api/query', async (req, res) => {
 
 // Chat endpoint (maintains conversation)
 app.post('/api/chat', async (req, res) => {
-  const { messages, question, profileId, customInstructions, projectId } = req.body;
-  
-  if (!question) {
-    return res.status(400).json({ error: 'Question is required' });
+  try {
+    const question = validation.validateQuery(req.body.question);
+    const profileId = validation.validateProfileId(req.body.profileId);
+    const { messages, customInstructions, projectId } = req.body;
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
   
   try {
@@ -621,7 +643,11 @@ app.get('/api/channels/:channelId/videos', async (req, res) => {
 
 // Delete a channel
 app.delete('/api/channels/:channelId', async (req, res) => {
-  const { channelId } = req.params;
+  try {
+    const channelId = validation.validateChannelId(req.params.channelId);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
   
   try {
     await channelManager.removeChannel(channelId);
@@ -651,10 +677,11 @@ app.post('/api/reset', async (req, res) => {
 
 // Project management endpoints
 app.post('/api/projects', async (req, res) => {
-  const { name, description } = req.body;
-  
-  if (!name) {
-    return res.status(400).json({ error: 'Project name is required' });
+  try {
+    const name = validation.validateProjectName(req.body.name);
+    const { description } = req.body;
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
   
   try {
@@ -674,7 +701,11 @@ app.get('/api/projects', (req, res) => {
 });
 
 app.post('/api/projects/:id/switch', async (req, res) => {
-  const { id } = req.params;
+  try {
+    const id = validation.validateProjectId(req.params.id);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
   
   try {
     const project = await upstashManager.switchProject(id);
@@ -687,7 +718,11 @@ app.post('/api/projects/:id/switch', async (req, res) => {
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
-  const { id } = req.params;
+  try {
+    const id = validation.validateProjectId(req.params.id);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
   
   try {
     await upstashManager.deleteProject(id);
@@ -700,11 +735,11 @@ app.delete('/api/projects/:id', async (req, res) => {
 });
 
 app.put('/api/projects/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name } = req.body;
-  
-  if (!name) {
-    return res.status(400).json({ error: 'Project name is required' });
+  try {
+    const id = validation.validateProjectId(req.params.id);
+    const name = validation.validateProjectName(req.body.name);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
   
   try {
@@ -773,10 +808,15 @@ async function checkForNewVideos() {
 
 // Bulk channel import endpoint
 app.post('/api/bulk-import', async (req, res) => {
-  const { channels, videoLimit, excludeShorts } = req.body;
-  
-  if (!channels || !Array.isArray(channels) || channels.length === 0) {
-    return res.status(400).json({ error: 'No channels provided' });
+  try {
+    const rawChannels = validation.validateArray(req.body.channels, 50); // Max 50 channels
+    const videoLimit = validation.validateVideoLimit(req.body.videoLimit);
+    const excludeShorts = validation.validateBoolean(req.body.excludeShorts, false);
+    
+    // Validate each channel ID
+    const channels = rawChannels.map(channel => validation.validateChannelId(channel));
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
   }
   
   // Update global bulk import status

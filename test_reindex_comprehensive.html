@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Re-index Test</title>
+    <style>
+        .modal { display: none; }
+        .modal.show { display: flex; }
+        button { margin: 10px; padding: 10px; }
+        .results { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Re-index Functionality Test</h1>
+    
+    <!-- Mock the reindex dialog elements -->
+    <div id="reindexDialog" class="modal">
+        <h3>Re-index Channel</h3>
+        <p id="reindexChannelName">Test Channel</p>
+        <input type="hidden" id="reindexChannelId" value="UC_X3F6vkK0CYRO7Oaq4Pi-w">
+        <label><input type="checkbox" id="reindexSkipExisting" checked> Only index new videos</label>
+        <label><input type="checkbox" id="reindexExcludeShorts"> Exclude YouTube Shorts</label>
+        <button onclick="closeReindexDialog()">Cancel</button>
+        <button id="reindexButton" onclick="startReindex(event)">Re-index</button>
+    </div>
+
+    <button onclick="showReindexDialog('UC_X3F6vkK0CYRO7Oaq4Pi-w', 'Test Channel')">Open Re-index Dialog</button>
+    <button onclick="testDirectReindex()">Test Direct Re-index</button>
+    <button onclick="testMissingElements()">Test Missing Elements</button>
+    
+    <div id="results" class="results">
+        <h3>Test Results:</h3>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        // Copy the exact functions from the main file
+        function showReindexDialog(channelId, channelName) {
+            console.log('Opening reindex dialog for:', channelId, channelName);
+            document.getElementById('reindexChannelId').value = channelId;
+            document.getElementById('reindexChannelName').textContent = `Re-index ${channelName}?`;
+            document.getElementById('reindexDialog').style.display = 'flex';
+        }
+
+        function closeReindexDialog() {
+            console.log('Closing reindex dialog');
+            document.getElementById('reindexDialog').style.display = 'none';
+        }
+
+        async function startReindex(event) {
+            console.log('startReindex called');
+            logResult('Starting re-index test...');
+            
+            // Small delay to ensure DOM is fully rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Debug: Check all elements
+            const channelIdElement = document.getElementById('reindexChannelId');
+            const skipExistingElement = document.getElementById('reindexSkipExisting');
+            const excludeShortsElement = document.getElementById('reindexExcludeShorts');
+            
+            console.log('Elements found:', {
+                channelIdElement: !!channelIdElement,
+                skipExistingElement: !!skipExistingElement,
+                excludeShortsElement: !!excludeShortsElement
+            });
+            
+            if (channelIdElement) {
+                console.log('channelId value:', channelIdElement.value);
+            }
+            
+            if (!channelIdElement) {
+                console.error('reindexChannelId element not found');
+                logResult('❌ ERROR: reindexChannelId element missing');
+                return;
+            }
+            
+            if (!skipExistingElement) {
+                console.error('reindexSkipExisting element not found');
+                logResult('❌ ERROR: reindexSkipExisting element missing');
+                return;
+            }
+            
+            if (!excludeShortsElement) {
+                console.error('reindexExcludeShorts element not found');  
+                logResult('❌ ERROR: reindexExcludeShorts element missing');
+                return;
+            }
+            
+            const channelId = channelIdElement.value;
+            const skipExisting = skipExistingElement.checked;
+            const excludeShorts = excludeShortsElement.checked;
+            
+            console.log('Values retrieved:', { channelId, skipExisting, excludeShorts });
+            logResult(`📋 Values: channelId=${channelId}, skipExisting=${skipExisting}, excludeShorts=${excludeShorts}`);
+            
+            if (!channelId) {
+                logResult('❌ ERROR: No channel selected for reindex');
+                return;
+            }
+            
+            const button = document.getElementById('reindexButton');
+            if (!button) {
+                console.error('reindexButton not found');
+                logResult('❌ ERROR: Reindex button not found');
+                return;
+            }
+            
+            console.log('Button found:', button);
+            button.disabled = true;
+            button.textContent = 'Starting re-index...';
+            
+            try {
+                const response = await fetch('http://localhost:3012/api/index-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channelId,
+                        skipExisting,
+                        excludeShorts
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    closeReindexDialog();
+                    logResult('✅ SUCCESS: Re-indexing started! ' + JSON.stringify(result));
+                } else {
+                    logResult('❌ ERROR: ' + result.error);
+                }
+            } catch (error) {
+                logResult('❌ NETWORK ERROR: ' + error.message);
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Re-index';
+                }
+            }
+        }
+
+        function testDirectReindex() {
+            logResult('--- Testing Direct Re-index ---');
+            startReindex({ target: document.getElementById('reindexButton') });
+        }
+
+        function testMissingElements() {
+            logResult('--- Testing Missing Elements ---');
+            // Temporarily hide elements to test error handling
+            const elements = ['reindexChannelId', 'reindexSkipExisting', 'reindexExcludeShorts'];
+            const originalElements = {};
+            
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    originalElements[id] = el;
+                    el.id = id + '_hidden';
+                }
+            });
+            
+            startReindex({ target: document.getElementById('reindexButton') }).then(() => {
+                // Restore elements
+                Object.keys(originalElements).forEach(id => {
+                    originalElements[id].id = id;
+                });
+            });
+        }
+
+        function logResult(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            console.log(message);
+        }
+
+        // Test on page load
+        window.onload = function() {
+            logResult('🟢 Page loaded successfully');
+            logResult('🔧 Ready to test re-index functionality');
+        };
+    </script>
+</body>
+</html>

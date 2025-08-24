@@ -29,7 +29,8 @@ class YouTubeService {
       console.log(`Resolving channel ID for: ${identifier}`);
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(cleanIdentifier)}&key=${this.apiKey}`;
       
-      // BYPASS RATE LIMITER - DIRECT API CALL
+      // Use rate limiter for search API call (1 unit)
+      await this.rateLimiter.checkQuota('search.list', 1);
       const response = await axios.get(searchUrl, { timeout: 5000 });
       
       if (response.data.items && response.data.items.length > 0) {
@@ -51,7 +52,8 @@ class YouTubeService {
     
     const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&id=${resolvedId}&key=${this.apiKey}`;
     
-    // BYPASS RATE LIMITER - DIRECT API CALL
+    // Use rate limiter for channels API call (1 unit)
+    await this.rateLimiter.checkQuota('channels.list', 1);
     const response = await axios.get(channelUrl, { timeout: 5000 });
     
     if (!response.data.items || response.data.items.length === 0) {
@@ -78,7 +80,7 @@ class YouTubeService {
         const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${pageToken}&key=${this.apiKey}`;
         
         // Use rate limiter for playlistItems.list API (1 unit)
-        // BYPASS RATE LIMITER - DIRECT API CALL
+        await this.rateLimiter.checkQuota('playlistItems.list', 1);
         const response = await axios.get(playlistUrl, { timeout: 10000 });
         
         for (const item of response.data.items) {
@@ -102,66 +104,96 @@ class YouTubeService {
   }
 
   async getVideoTranscript(videoId) {
+    const categorize = (msg) => {
+      const m = (msg || '').toLowerCase();
+      if (m.includes('disabled')) return 'CAPTIONS_DISABLED';
+      if (m.includes('not available') || m.includes('no transcript')) return 'NO_CAPTIONS';
+      if (m.includes('private') || m.includes('unavailable') || m.includes('age')) return 'PRIVATE_OR_RESTRICTED';
+      if (m.includes('expandablemetadata') || m.includes('structure')) return 'STRUCTURE_UNSUPPORTED';
+      if (m.includes('quota')) return 'RATE_LIMIT';
+      if (m.includes('timeout') || m.includes('timed out') || m.includes('network') || m.includes('econn') || m.includes('socket')) return 'TRANSIENT_ERROR';
+      return 'UNKNOWN';
+    };
+    
+    const extractText = (transcriptInfo) => {
+      if (!transcriptInfo || !transcriptInfo.transcript || !transcriptInfo.transcript.content || !transcriptInfo.transcript.content.body) {
+        return { success: false, category: 'STRUCTURE_UNSUPPORTED', details: 'Invalid transcript structure' };
+      }
+      const segmentList = transcriptInfo.transcript.content.body;
+      let segments = [];
+      if (segmentList.initial_segments) {
+        segments = segmentList.initial_segments;
+      } else if (Array.isArray(segmentList)) {
+        segments = segmentList[0]?.transcript_segment_list?.initial_segments || [];
+      } else if (segmentList.transcript_segment_list) {
+        segments = segmentList.transcript_segment_list.initial_segments || [];
+      }
+      if (segments.length === 0) {
+        return { success: false, category: 'NO_CAPTIONS', details: 'No transcript segments' };
+      }
+      const fullText = segments
+        .map(segment => segment?.snippet?.text || segment?.text || '')
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (fullText.length <= 10) {
+        return { success: false, category: 'TOO_SHORT', details: `Transcript too short (${fullText.length} chars)` };
+      }
+      return { success: true, data: { videoId, transcript: fullText, segments: segments.length } };
+    };
+    
     try {
       await this.initInnertube();
-      
-      // Get video info first
-      const info = await this.innertube.getInfo(videoId);
-      
-      // Check if transcript is available
-      if (!info.captions || !info.captions.caption_tracks || info.captions.caption_tracks.length === 0) {
-        console.log(`No captions available for ${videoId}`);
-        return null;
+      let info;
+      try {
+        info = await this.innertube.getInfo(videoId);
+      } catch (e) {
+        const category = categorize(e.message);
+        return { success: false, category, details: e.message };
       }
+      if (!info.captions) {
+        return { success: false, category: 'NO_CAPTIONS', details: 'No captions object' };
+      }
+      if (!info.captions.caption_tracks) {
+        return { success: false, category: 'NO_CAPTIONS', details: 'No caption_tracks' };
+      }
+      if (info.captions.caption_tracks.length === 0) {
+        return { success: false, category: 'NO_CAPTIONS', details: 'Empty caption_tracks' };
+      }
+      const availableLanguages = info.captions.caption_tracks.map(track => track.language?.name || 'unknown');
+      console.log(`Available captions for ${videoId}: ${availableLanguages.join(', ')}`);
       
-      // Get transcript using the info object
-      const transcriptInfo = await info.getTranscript();
-      
-      if (transcriptInfo && transcriptInfo.transcript && transcriptInfo.transcript.content && transcriptInfo.transcript.content.body) {
-        const segmentList = transcriptInfo.transcript.content.body;
-        
-        // Extract segments
-        let segments = [];
-        if (segmentList.initial_segments) {
-          segments = segmentList.initial_segments;
-        } else if (Array.isArray(segmentList)) {
-          segments = segmentList[0]?.transcript_segment_list?.initial_segments || [];
-        } else if (segmentList.transcript_segment_list) {
-          segments = segmentList.transcript_segment_list.initial_segments || [];
-        }
-        
-        if (segments.length > 0) {
-          // Extract text from segments
-          const fullText = segments
-            .map(segment => {
-              // Handle different segment structures
-              if (segment.snippet && segment.snippet.text) {
-                return segment.snippet.text;
-              } else if (segment.text) {
-                return segment.text;
-              }
-              return '';
-            })
-            .filter(text => text.length > 0)
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          
-          if (fullText.length > 10) {
-            console.log(`Got transcript for ${videoId} (${fullText.length} chars)`);
-            return {
-              videoId,
-              transcript: fullText,
-              segments: segments.length
-            };
+      // Try fetching transcript with small retry for transient errors
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const transcriptInfo = await info.getTranscript();
+          const extracted = extractText(transcriptInfo);
+          if (extracted.success) {
+            console.log(`Successfully extracted transcript for ${videoId} (attempt ${attempt})`);
+            return extracted;
           }
+          // If extraction failed due to structure/too short, do not retry further
+          if (['STRUCTURE_UNSUPPORTED', 'TOO_SHORT', 'NO_CAPTIONS'].includes(extracted.category)) {
+            return extracted;
+          }
+        } catch (transcriptError) {
+          const category = categorize(transcriptError.message);
+          // Retry only on transient
+          if (category !== 'TRANSIENT_ERROR' || attempt === maxAttempts) {
+            return { success: false, category, details: transcriptError.message };
+          }
+          const backoff = 300 * attempt;
+          console.log(`Transcript fetch transient error for ${videoId}, retrying in ${backoff}ms (attempt ${attempt}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, backoff));
         }
       }
+      return { success: false, category: 'UNKNOWN', details: 'Exhausted transcript attempts' };
     } catch (error) {
-      console.log(`Error getting transcript for ${videoId}: ${error.message}`);
+      const category = categorize(error.message);
+      return { success: false, category, details: error.message };
     }
-    
-    return null;
   }
 
   async getVideoMetadata(videoIds) {
@@ -193,6 +225,8 @@ class YouTubeService {
     const config = typeof options === 'number' ? { limit: options } : options;
     const { limit = null, excludeShorts = false, skipExisting = [] } = config;
     
+    console.log(`getChannelTranscripts called with excludeShorts: ${excludeShorts}, limit: ${limit}`);
+    
     console.log(`Fetching channel info for ${channelId}...`);
     const channelInfo = await this.getChannelInfo(channelId);
     console.log(`Channel: ${channelInfo.name}`);
@@ -214,9 +248,11 @@ class YouTubeService {
     if (excludeShorts && limit) {
       // Fetch extra videos in case some are shorts (fetch 50% more)
       videosToCheck = filteredVideos.slice(0, Math.ceil(limit * 1.5));
-    } else if (limit) {
+    } else if (limit && !excludeShorts) {
+      // Only apply limit if we're not filtering shorts
       videosToCheck = filteredVideos.slice(0, limit);
     }
+    // If excludeShorts=true but no limit, process all videos (they'll be filtered later)
     
     console.log('Fetching video metadata...');
     const videoIds = videosToCheck.map(v => v.videoId);
@@ -224,7 +260,9 @@ class YouTubeService {
     
     // Filter out shorts if requested
     let finalVideosToProcess = videosToCheck;
+    console.log(`About to filter shorts. excludeShorts=${excludeShorts}, videosToCheck=${videosToCheck.length}`);
     if (excludeShorts) {
+      console.log('Entering shorts filtering logic...');
       finalVideosToProcess = videosToCheck.filter(video => {
         const videoMeta = metadata[video.videoId];
         if (!videoMeta || !videoMeta.duration) return true;
@@ -252,25 +290,54 @@ class YouTubeService {
     
     console.log(`Processing ${finalVideosToProcess.length} videos...`);
     
+    // If no videos to process, return detailed explanation
+    if (finalVideosToProcess.length === 0) {
+      const totalVideos = videos.length;
+      const skippedCount = skipExisting.length;
+      const remainingAfterSkip = totalVideos - skippedCount;
+      const shortsFilteredCount = excludeShorts ? (videosToCheck.length - finalVideosToProcess.length) : 0;
+      
+      let message = `No videos to process for this channel.`;
+      
+      if (totalVideos === 0) {
+        message = `This channel has no videos.`;
+      } else if (skippedCount > 0 && remainingAfterSkip === 0) {
+        message = `All ${totalVideos} videos from this channel are already indexed. No new videos to process.`;
+      } else if (excludeShorts && shortsFilteredCount > 0) {
+        if (skippedCount > 0) {
+          message = `After skipping ${skippedCount} already indexed videos and filtering out ${shortsFilteredCount} YouTube Shorts, no videos remain to process. Try unchecking "Exclude YouTube Shorts" if you want to index short-form content.`;
+        } else {
+          message = `All ${shortsFilteredCount} videos in this channel are YouTube Shorts. Try unchecking "Exclude YouTube Shorts" if you want to index short-form content.`;
+        }
+      } else if (skippedCount > 0) {
+        message = `${skippedCount} of ${totalVideos} videos are already indexed, ${remainingAfterSkip} would be processed but none have available transcripts.`;
+      }
+      
+      throw new Error(message);
+    }
+    
     const transcripts = [];
     const failed = [];
     
     for (const video of finalVideosToProcess) {
       console.log(`Fetching transcript for: ${video.title}`);
       
-      const transcript = await this.getVideoTranscript(video.videoId);
+      const transcriptResult = await this.getVideoTranscript(video.videoId);
       
-      if (transcript) {
+      if (transcriptResult && transcriptResult.success) {
         transcripts.push({
           ...video,
-          ...transcript,
+          ...transcriptResult.data,
           metadata: metadata[video.videoId]
         });
       } else {
+        const reasonCategory = transcriptResult?.category || 'NO_CAPTIONS';
+        const reasonDetails = transcriptResult?.details || 'No transcript available';
         failed.push({
           ...video,
           metadata: metadata[video.videoId],
-          reason: 'No transcript available'
+          reason: reasonCategory,
+          details: reasonDetails
         });
       }
       
