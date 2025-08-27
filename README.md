@@ -27,6 +27,12 @@ npm start
 
 4. Open http://localhost:3000
 
+Optional: Standalone client chat UI
+
+- A streamlined chat experience is available at `/client-chat.html`.
+- It uses the same `/api/chat` backend and will show source links.
+- Access directly: http://localhost:3000/client-chat.html
+
 ## Usage
 
 1. Enter a YouTube Channel ID in the sidebar
