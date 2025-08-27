@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const VectorStoreService = require('../../services/vectorStore');
+const RAGService = require('../../services/rag');
 
 // Middleware to check if project is public
 async function checkPublicAccess(req, res, next) {
@@ -25,7 +27,7 @@ async function checkPublicAccess(req, res, next) {
 }
 
 // Public project listing
-router.get('/api/public/projects', async (req, res) => {
+router.get('/public/projects', async (req, res) => {
   try {
     const upstashManager = req.app.locals.upstashManager;
     const channelManager = req.app.locals.channelManager;
@@ -73,7 +75,7 @@ router.get('/api/public/projects', async (req, res) => {
 });
 
 // Get specific public project details
-router.get('/api/public/project/:projectId', checkPublicAccess, async (req, res) => {
+router.get('/public/project/:projectId', checkPublicAccess, async (req, res) => {
   try {
     const project = req.project;
     const channelManager = req.app.locals.channelManager;
@@ -114,7 +116,7 @@ router.get('/api/public/project/:projectId', checkPublicAccess, async (req, res)
 });
 
 // Public chat endpoint
-router.post('/api/public/project/:projectId/chat', checkPublicAccess, async (req, res) => {
+router.post('/public/project/:projectId/chat', checkPublicAccess, async (req, res) => {
   try {
     const { question } = req.body;
     const project = req.project;
@@ -123,16 +125,14 @@ router.post('/api/public/project/:projectId/chat', checkPublicAccess, async (req
       return res.status(400).json({ error: 'Question is required' });
     }
     
-    // Use the RAG service with this project's vector store
+    // Build a project-scoped vector store and RAG service without mutating globals
     const upstashManager = req.app.locals.upstashManager;
-    const vectorStore = req.app.locals.vectorStore;
-    const ragService = req.app.locals.ragService;
-    
-    // Switch to project's vector store
-    upstashManager.setCurrentProject(project.id);
-    
-    // Get answer from RAG
-    const result = await ragService.getAnswer(question);
+    const creds = upstashManager.getProjectCredentials(project.id);
+    const vectorStore = new VectorStoreService(creds);
+    const ragService = new RAGService(vectorStore);
+
+    // Get answer from RAG (query method)
+    const result = await ragService.query(question);
     
     // Track usage
     if (!project.chatCount) project.chatCount = 0;
@@ -161,7 +161,7 @@ router.get('/rag/:projectId/embed', checkPublicAccess, (req, res) => {
 });
 
 // Toggle project public/private
-router.post('/api/project/:projectId/visibility', async (req, res) => {
+router.post('/project/:projectId/visibility', async (req, res) => {
   try {
     const { projectId } = req.params;
     const { isPublic, slug } = req.body;
@@ -193,7 +193,7 @@ router.post('/api/project/:projectId/visibility', async (req, res) => {
         name: project.name,
         isPublic: project.isPublic,
         slug: project.slug,
-        shareUrl: project.isPublic ? `/rag/${project.slug || project.id}` : null
+        shareUrl: project.isPublic ? `/api/rag/${project.slug || project.id}` : null
       }
     });
   } catch (error) {

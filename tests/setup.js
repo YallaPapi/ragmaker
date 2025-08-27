@@ -8,6 +8,61 @@ jest.mock('@upstash/vector');
 jest.mock('@upstash/redis');
 
 // Global test utilities
+global.testData = {
+  createMockEmbedding(overrides = {}) {
+    const id = overrides.id || 'video1_chunk_0';
+    return {
+      id,
+      vector: Array.from({ length: 1536 }, () => Math.random()),
+      metadata: {
+        content: 'Sample content chunk',
+        videoId: 'video1',
+        videoTitle: 'Test Video',
+        videoUrl: 'https://youtube.com/watch?v=video1',
+        ...(overrides.metadata || {})
+      },
+      ...overrides
+    };
+  },
+  createMockSearchResult(overrides = {}) {
+    return {
+      id: overrides.id || 'video1_chunk_0',
+      score: overrides.score !== undefined ? overrides.score : 0.9,
+      metadata: {
+        content: 'Result content',
+        videoId: 'video1',
+        videoTitle: 'AI Basics',
+        videoUrl: 'https://youtube.com/watch?v=video1',
+        ...(overrides.metadata || {})
+      },
+      ...overrides
+    };
+  },
+  createMockVideo(overrides = {}) {
+    const videoId = overrides.videoId || 'video1';
+    return {
+      videoId,
+      title: overrides.title || 'Test Video',
+      description: overrides.description || 'Desc',
+      publishedAt: overrides.publishedAt || new Date().toISOString(),
+      url: overrides.url || `https://www.youtube.com/watch?v=${videoId}`,
+      transcript: overrides.transcript || 'Sample transcript content',
+      metadata: overrides.metadata || {}
+    };
+  }
+};
+
+global.mockImplementations = {
+  mockOpenAICompletion(content) {
+    return {
+      choices: [
+        {
+          message: { content }
+        }
+      ]
+    };
+  }
+};
 global.mockYouTubeData = {
   channel: {
     id: 'UC123456789',

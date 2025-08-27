@@ -134,33 +134,14 @@ async function saveLogs() {
 // Load logs on startup
 loadLogs();
 
-// Routes
+// Helper: start indexing job for a channel (runs in background)
+async function startIndexingJob(channelId, params = {}) {
+  const { videoLimit = null, excludeShorts = false, skipExistingFlag = false } = params;
 
-// Index a YouTube channel (adds to existing knowledge base)
-app.post('/api/index-channel', async (req, res) => {
-  try {
-    // Validate and sanitize inputs
-    const channelId = validation.validateChannelId(req.body.channelId);
-    const videoLimit = validation.validateVideoLimit(req.body.videoLimit);
-    const skipExisting = validation.validateBoolean(req.body.skipExisting, false);
-    const excludeShorts = validation.validateBoolean(req.body.excludeShorts, false);
-  } catch (validationError) {
-    return res.status(400).json({ error: validationError.message });
-  }
-  
   if (indexingStatus.isIndexing) {
-    // Return success with current channel info so frontend can show progress
-    return res.json({ 
-      message: 'Indexing already in progress',
-      channelId: indexingStatus.channelId,
-      showProgress: true
-    });
+    return { alreadyInProgress: true };
   }
-  
-  // Note: For re-indexing, we allow processing regardless of whether channel is already indexed
-  // The skipExisting parameter controls whether to re-process existing videos
-  
-  // Start indexing in background - ensure arrays are initialized
+
   indexingStatus = {
     isIndexing: true,
     progress: 0,
@@ -174,24 +155,18 @@ app.post('/api/index-channel', async (req, res) => {
     startTime: null,
     endTime: null
   };
-  
-  res.json({ message: 'Indexing started', channelId });
-  
-  // Cancel any existing job
+
   if (activeIndexingJob) {
     indexingStatus.cancelled = true;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
-  
-  // Background indexing process
+
   activeIndexingJob = (async () => {
     try {
-      // Fetch transcripts with custom limit or all videos
       indexingStatus.message = 'Fetching channel videos...';
       indexingStatus.currentStep = 'Fetching channel information and video list...';
       indexingStatus.startTime = new Date().toISOString();
-      
-      // Initialize progress tracking
+
       indexingProgress.set(channelId, {
         status: 'Starting...',
         processed: 0,
@@ -201,26 +176,19 @@ app.post('/api/index-channel', async (req, res) => {
         completed: false,
         failed: false
       });
-      
-      // Pass options to YouTube service
-      const options = {
-        limit: videoLimit,
-        excludeShorts,
-        skipExisting: skipExisting ? channelManager.getIndexedVideos(channelId) : []
-      };
-      
+
+      const skipIds = skipExistingFlag ? channelManager.getIndexedVideos(channelId) : [];
+      const options = { limit: videoLimit, excludeShorts, skipExisting: skipIds };
       const result = await youtubeService.getChannelTranscripts(channelId, options);
       const { channelInfo, transcripts, failed, totalVideos, processedVideos } = result;
-      
+
       indexingStatus.totalVideos = processedVideos;
       indexingStatus.currentStep = `Found ${transcripts.length} videos with transcripts to process`;
-      // Add initial failed videos (no transcript available)
       if (failed && failed.length > 0) {
         indexingStatus.failedVideos = [...failed];
       }
       indexingStatus.progress = 20;
-      
-      // Update progress tracking
+
       indexingProgress.set(channelId, {
         status: 'Processing transcripts...',
         processed: 0,
@@ -230,35 +198,25 @@ app.post('/api/index-channel', async (req, res) => {
         completed: false,
         failed: false
       });
-      
+
       if (transcripts.length === 0) {
-        const errorMsg = failed && failed.length > 0 
+        const errorMsg = failed && failed.length > 0
           ? `No transcripts could be retrieved for any of the ${failed.length} videos from this channel. This may be due to: 1) Videos have disabled captions, 2) Channel uses members-only content, 3) Videos are age-restricted, or 4) Technical issues with caption APIs.`
           : 'No transcripts found for this channel. The channel may not have any videos or all videos have disabled captions.';
         throw new Error(errorMsg);
       }
-      
-      // Use actual channel name from YouTube API
+
       const channelName = channelInfo.name;
-      
-      // Process embeddings with progress tracking
-      indexingStatus.message = `Processing ${transcripts.length} videos...`;
       const embeddings = [];
-      
       for (let i = 0; i < transcripts.length; i++) {
-        // Check if cancelled
-        if (indexingStatus.cancelled) {
-          throw new Error('Indexing cancelled by user');
-        }
-        
+        if (indexingStatus.cancelled) throw new Error('Indexing cancelled by user');
         const video = transcripts[i];
         indexingStatus.message = `Processing video ${i + 1}/${transcripts.length}: ${video.title}`;
         indexingStatus.currentStep = `Creating embeddings for: ${video.title}`;
         indexingStatus.processedVideos = i + 1;
-        indexingStatus.progress = 20 + Math.floor((i / transcripts.length) * 50);
-        
-        // Update progress tracking
+
         const currentPercentage = 20 + Math.floor((i / transcripts.length) * 50);
+        indexingStatus.progress = currentPercentage;
         indexingProgress.set(channelId, {
           status: 'Processing videos...',
           processed: i + 1,
@@ -268,11 +226,9 @@ app.post('/api/index-channel', async (req, res) => {
           completed: false,
           failed: false
         });
-        
+
         try {
-          // Make sure video has transcript property
           if (!video.transcript) {
-            console.warn(`Video ${video.videoId} has no transcript content`);
             indexingStatus.failedVideos.push({
               videoId: video.videoId,
               title: video.title,
@@ -281,11 +237,9 @@ app.post('/api/index-channel', async (req, res) => {
             });
             continue;
           }
-          
+
           const chunks = await embeddingService.processVideo(video);
           embeddings.push(...chunks);
-          
-          // Track successful video
           indexingStatus.successVideos.push({
             videoId: video.videoId,
             title: video.title,
@@ -303,18 +257,13 @@ app.post('/api/index-channel', async (req, res) => {
             reason: error.message
           });
         }
-        
-        // Small delay to avoid rate limiting
+
         await new Promise(resolve => setTimeout(resolve, 500));
       }
-      
+
       indexingStatus.progress = 70;
-      
-      // Index to vector store (ADDS to existing data)
       indexingStatus.message = 'Adding to knowledge base...';
       indexingStatus.currentStep = 'Storing embeddings in vector database...';
-      
-      // Update progress tracking
       indexingProgress.set(channelId, {
         status: 'Finalizing...',
         processed: transcripts.length,
@@ -324,19 +273,15 @@ app.post('/api/index-channel', async (req, res) => {
         completed: false,
         failed: false
       });
-      
+
       await vectorStore.indexChannel(embeddings);
       indexingStatus.progress = 100;
-      
-      // Save channel info with project ID (use resolved channel ID)
+
       const currentProject = upstashManager.getCurrentProject();
       const resolvedChannelId = channelInfo.id || channelId;
-      
-      // Track indexed video IDs
       const indexedVideoIds = indexingStatus.successVideos.map(v => v.videoId);
-      
-      // If skipExisting was used, we're updating an existing channel
-      if (skipExisting && channelManager.isChannelIndexed(resolvedChannelId)) {
+
+      if (skipExistingFlag && channelManager.isChannelIndexed(resolvedChannelId)) {
         await channelManager.updateChannel(resolvedChannelId, {
           videoCount: channelManager.getChannel(resolvedChannelId).videoCount + transcripts.length,
           totalChunks: (channelManager.getChannel(resolvedChannelId).totalChunks || 0) + embeddings.length
@@ -351,14 +296,11 @@ app.post('/api/index-channel', async (req, res) => {
         }, currentProject?.id);
         await channelManager.addIndexedVideos(resolvedChannelId, indexedVideoIds);
       }
-      
+
       indexingStatus.endTime = new Date().toISOString();
       indexingStatus.isIndexing = false;
-      indexingStatus.progress = 100;
       indexingStatus.message = `Successfully indexed ${indexingStatus.successVideos.length} videos, ${indexingStatus.failedVideos.length} failed`;
       indexingStatus.currentStep = 'Indexing completed successfully!';
-      
-      // Mark progress as completed
       indexingProgress.set(channelId, {
         status: 'Completed!',
         processed: transcripts.length,
@@ -368,13 +310,12 @@ app.post('/api/index-channel', async (req, res) => {
         completed: true,
         failed: false
       });
-      
-      // Save to logs
+
       const logEntry = {
         timestamp: indexingStatus.startTime,
         channelId: resolvedChannelId,
         channelName,
-        totalVideos: processedVideos,
+        totalVideos: totalVideos,
         successCount: indexingStatus.successVideos.length,
         failedCount: indexingStatus.failedVideos.length,
         duration: Date.now() - new Date(indexingStatus.startTime).getTime(),
@@ -400,8 +341,6 @@ app.post('/api/index-channel', async (req, res) => {
         currentStep: 'Failed with error',
         error: error.message
       };
-      
-      // Mark progress as failed
       indexingProgress.set(channelId, {
         status: 'Failed',
         processed: 0,
@@ -416,11 +355,43 @@ app.post('/api/index-channel', async (req, res) => {
       activeIndexingJob = null;
     }
   })();
-  
-  activeIndexingJob.catch(error => {
-    console.error('Indexing job error:', error);
+
+  activeIndexingJob.catch(err => {
+    console.error('Indexing job error:', err);
     activeIndexingJob = null;
   });
+
+  return { started: true };
+}
+
+// Routes
+
+// Index a YouTube channel (adds to existing knowledge base)
+app.post('/api/index-channel', async (req, res) => {
+  let channelId, videoLimit, skipExisting, excludeShorts;
+  try {
+    channelId = validation.validateChannelId(req.body.channelId);
+    videoLimit = validation.validateVideoLimit(req.body.videoLimit);
+    skipExisting = validation.validateBoolean(req.body.skipExisting, false);
+    excludeShorts = validation.validateBoolean(req.body.excludeShorts, false);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
+
+  if (indexingStatus.isIndexing) {
+    return res.json({
+      message: 'Indexing already in progress',
+      channelId: indexingStatus.channelId,
+      showProgress: true
+    });
+  }
+
+  // Set guard immediately to avoid race on concurrent requests
+  indexingStatus.isIndexing = true;
+  indexingStatus.channelId = channelId;
+  indexingStatus.message = 'Starting indexing process...';
+  await startIndexingJob(channelId, { videoLimit, excludeShorts, skipExistingFlag: !!skipExisting });
+  return res.json({ message: 'Indexing started', channelId });
 });
 
 // Get indexing status
@@ -485,14 +456,16 @@ app.post('/api/reset-indexing', (req, res) => {
 
 // Query the RAG system
 app.post('/api/query', async (req, res) => {
+  let question;
   try {
-    const question = validation.validateQuery(req.body.question);
+    question = validation.validateQuery(req.body.question);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
-    const response = await ragService.query(question);
+    const service = req.app.locals.ragService || ragService;
+    const response = await service.query(question);
     res.json(response);
   } catch (error) {
     console.error('Query error:', error);
@@ -502,22 +475,23 @@ app.post('/api/query', async (req, res) => {
 
 // Chat endpoint (maintains conversation)
 app.post('/api/chat', async (req, res) => {
+  let question, profileId, messages, customInstructions;
   try {
-    const question = validation.validateQuery(req.body.question);
-    const profileId = validation.validateProfileId(req.body.profileId);
-    const { messages, customInstructions, projectId } = req.body;
+    question = validation.validateQuery(req.body.question);
+    profileId = validation.validateProfileId(req.body.profileId);
+    ({ messages, customInstructions } = req.body);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
-    // Ensure we have initialized services
-    if (!ragService) {
-      return res.status(500).json({ 
-        error: 'RAG service not initialized', 
+    // Respect explicit null in app.locals to simulate missing service in tests
+    if (Object.prototype.hasOwnProperty.call(req.app.locals, 'ragService') && !req.app.locals.ragService) {
+      return res.status(500).json({
+        error: 'RAG service not initialized',
         debug: {
-          question,
-          profileId: profileId || 'default',
+          question: req.body?.question || 'Unknown',
+          profileId: req.body?.profileId || 'default',
           chunksCount: 0,
           context: 'ERROR: RAG service not initialized',
           systemPrompt: 'ERROR: Service not available',
@@ -526,13 +500,25 @@ app.post('/api/chat', async (req, res) => {
         }
       });
     }
-    
-    // Pass profileId and custom instructions to query method
-    const response = await ragService.query(question, 10, profileId || 'default', customInstructions);
-    console.log('RAG response includes debug:', !!response.debug); // Debug log
-    console.log('Debug data structure:', response.debug ? Object.keys(response.debug) : 'No debug data'); // Additional debug log
-    
-    // Ensure debug object exists in response
+
+    const service = req.app.locals.ragService || ragService;
+    if (!service) {
+      return res.status(500).json({
+        error: 'RAG service not initialized',
+        debug: {
+          question: req.body?.question || 'Unknown',
+          profileId: req.body?.profileId || 'default',
+          chunksCount: 0,
+          context: 'ERROR: RAG service not initialized',
+          systemPrompt: 'ERROR: Service not available',
+          userPrompt: 'ERROR: Service not available',
+          error: 'RAG service not initialized'
+        }
+      });
+    }
+
+    const response = await service.query(question, 10, profileId || 'default', customInstructions);
+
     if (!response.debug) {
       response.debug = {
         question,
@@ -544,15 +530,15 @@ app.post('/api/chat', async (req, res) => {
         error: 'Debug object missing from RAG response'
       };
     }
-    
+
     res.json(response);
   } catch (error) {
     console.error('Chat error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to process chat',
       debug: {
-        question: question || 'Unknown',
-        profileId: profileId || 'default',
+        question: req.body?.question || 'Unknown',
+        profileId: req.body?.profileId || 'default',
         chunksCount: 0,
         context: 'ERROR: Chat processing failed',
         systemPrompt: 'ERROR: Chat processing failed',
@@ -566,7 +552,7 @@ app.post('/api/chat', async (req, res) => {
 // Get vector store stats + indexed channels
 app.get('/api/stats', async (req, res) => {
   try {
-    const stats = await vectorStore.getStats();
+    const stats = await (req.app.locals.vectorStore || vectorStore).getStats();
     const currentProject = upstashManager.getCurrentProject();
     const channels = channelManager.getAllChannels(currentProject?.id);
     const totalVideos = channelManager.getTotalVideos(currentProject?.id);
@@ -643,12 +629,13 @@ app.get('/api/channels/:channelId/videos', async (req, res) => {
 
 // Delete a channel
 app.delete('/api/channels/:channelId', async (req, res) => {
+  let channelId;
   try {
-    const channelId = validation.validateChannelId(req.params.channelId);
+    channelId = validation.validateChannelId(req.params.channelId);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
     await channelManager.removeChannel(channelId);
     res.json({ success: true, message: 'Channel removed successfully' });
@@ -677,13 +664,14 @@ app.post('/api/reset', async (req, res) => {
 
 // Project management endpoints
 app.post('/api/projects', async (req, res) => {
+  let name, description;
   try {
-    const name = validation.validateProjectName(req.body.name);
-    const { description } = req.body;
+    name = validation.validateProjectName(req.body.name);
+    ({ description } = req.body);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
     const project = await upstashManager.createProject(name, description);
     await initializeServices(); // Reinitialize with new project
@@ -701,12 +689,13 @@ app.get('/api/projects', (req, res) => {
 });
 
 app.post('/api/projects/:id/switch', async (req, res) => {
+  let id;
   try {
-    const id = validation.validateProjectId(req.params.id);
+    id = validation.validateProjectId(req.params.id);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
     const project = await upstashManager.switchProject(id);
     await initializeServices(); // Reinitialize with switched project
@@ -718,12 +707,13 @@ app.post('/api/projects/:id/switch', async (req, res) => {
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
+  let id;
   try {
-    const id = validation.validateProjectId(req.params.id);
+    id = validation.validateProjectId(req.params.id);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
     await upstashManager.deleteProject(id);
     await initializeServices(); // Reinitialize after deletion
@@ -735,13 +725,14 @@ app.delete('/api/projects/:id', async (req, res) => {
 });
 
 app.put('/api/projects/:id', async (req, res) => {
+  let id, name;
   try {
-    const id = validation.validateProjectId(req.params.id);
-    const name = validation.validateProjectName(req.body.name);
+    id = validation.validateProjectId(req.params.id);
+    name = validation.validateProjectName(req.body.name);
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
+
   try {
     await upstashManager.updateProject(id, { name });
     res.json({ success: true, name });
@@ -808,18 +799,16 @@ async function checkForNewVideos() {
 
 // Bulk channel import endpoint
 app.post('/api/bulk-import', async (req, res) => {
+  let channels, videoLimit, excludeShorts;
   try {
-    const rawChannels = validation.validateArray(req.body.channels, 50); // Max 50 channels
-    const videoLimit = validation.validateVideoLimit(req.body.videoLimit);
-    const excludeShorts = validation.validateBoolean(req.body.excludeShorts, false);
-    
-    // Validate each channel ID
-    const channels = rawChannels.map(channel => validation.validateChannelId(channel));
+    const rawChannels = validation.validateArray(req.body.channels, 50);
+    videoLimit = validation.validateVideoLimit(req.body.videoLimit);
+    excludeShorts = validation.validateBoolean(req.body.excludeShorts, false);
+    channels = rawChannels.map(channel => validation.validateChannelId(channel));
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message });
   }
-  
-  // Update global bulk import status
+
   bulkImportStatus = {
     inProgress: true,
     total: channels.length,
@@ -828,56 +817,39 @@ app.post('/api/bulk-import', async (req, res) => {
     failed: [],
     currentChannel: null
   };
-  
-  res.json({ 
-    message: 'Bulk import started', 
-    totalChannels: channels.length 
-  });
-  
-  // Process channels sequentially in background
+
+  res.json({ message: 'Bulk import started', totalChannels: channels.length });
+
   (async () => {
-    
     for (const channelId of channels) {
       bulkImportStatus.currentChannel = channelId;
-      
       try {
-        // Check if already processing
-        if (indexingStatus.isIndexing) {
-          // Wait for current indexing to complete
-          while (indexingStatus.isIndexing) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
+        while (indexingStatus.isIndexing) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        
-        // Start indexing this channel
-        const response = await fetch(`http://localhost:${config.server.port}/api/index-channel`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channelId,
-            videoLimit,
-            excludeShorts,
-            skipExisting: false
-          })
+
+        await startIndexingJob(channelId, {
+          videoLimit,
+          excludeShorts,
+          skipExistingFlag: false
         });
-        
-        if (response.ok) {
-          // Wait for indexing to complete
-          while (indexingStatus.isIndexing) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-          
-          bulkImportStatus.successful.push(channelId);
+
+        while (indexingStatus.isIndexing) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        if (indexingStatus.error) {
+          bulkImportStatus.failed.push({ channelId, error: indexingStatus.error });
         } else {
-          bulkImportStatus.failed.push({ channelId, error: 'Failed to start indexing' });
+          bulkImportStatus.successful.push(channelId);
         }
       } catch (error) {
         bulkImportStatus.failed.push({ channelId, error: error.message });
       }
-      
+
       bulkImportStatus.processed++;
     }
-    
+
     bulkImportStatus.inProgress = false;
     bulkImportStatus.currentChannel = null;
   })();
@@ -1006,8 +978,13 @@ app.get('/api/indexing-progress/:channelId', (req, res) => {
   });
 });
 
-// Start server
+// Start server only if this file is executed directly
 const PORT = config.server.port;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+// Export app for testing and integration
+module.exports = app;

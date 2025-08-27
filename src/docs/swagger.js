@@ -287,6 +287,73 @@ const options = {
         }
       }
     },
+    paths: {
+      '/api/query': {
+        post: {
+          tags: ['RAG'],
+          summary: 'Query the knowledge base',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'] }
+              }
+            }
+          },
+          responses: { 200: { description: 'OK' }, 400: { description: 'Invalid input' } }
+        }
+      },
+      '/api/chat': {
+        post: {
+          tags: ['RAG'],
+          summary: 'Chat with profiles',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    question: { type: 'string' },
+                    profileId: { type: 'string' },
+                    customInstructions: { type: 'string' }
+                  },
+                  required: ['question']
+                }
+              }
+            }
+          },
+          responses: { 200: { description: 'OK' } }
+        }
+      },
+      '/api/index-channel': {
+        post: {
+          tags: ['Indexing'],
+          summary: 'Index a YouTube channel',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    channelId: { type: 'string' },
+                    videoLimit: { type: 'integer' },
+                    excludeShorts: { type: 'boolean' },
+                    skipExisting: { type: 'boolean' }
+                  },
+                  required: ['channelId']
+                }
+              }
+            }
+          },
+          responses: { 200: { description: 'Indexing started' } }
+        }
+      },
+      '/api/stats': { get: { tags: ['System'], summary: 'Get system statistics', responses: { 200: { description: 'OK' } } } },
+      '/api/channels': { get: { tags: ['Channels'], summary: 'List channels', responses: { 200: { description: 'OK' } } } },
+      '/api/quota': { get: { tags: ['YouTube'], summary: 'Get quota status', responses: { 200: { description: 'OK' } } } }
+    },
     security: [
       {
         ApiKeyAuth: []

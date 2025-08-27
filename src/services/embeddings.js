@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
 const config = require('../config');
 

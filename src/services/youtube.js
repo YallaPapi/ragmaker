@@ -1,18 +1,25 @@
 const axios = require('axios');
 const config = require('../config');
-const { Innertube } = require('youtubei.js');
+// const { Innertube } = require('youtubei.js'); // Temporarily disabled due to ES module issue
 const YouTubeRateLimiter = require('./youtubeRateLimiter');
 
 class YouTubeService {
   constructor() {
     this.apiKey = config.youtube.apiKey;
-    this.innertube = null;
+    this.innertube = null; // Will be initialized dynamically if needed
     this.rateLimiter = new YouTubeRateLimiter();
   }
 
   async initInnertube() {
     if (!this.innertube) {
-      this.innertube = await Innertube.create();
+      try {
+        // Dynamic import for ES module
+        const { Innertube } = await import('youtubei.js');
+        this.innertube = await Innertube.create();
+      } catch (error) {
+        console.warn('Could not initialize Innertube:', error.message);
+        this.innertube = null;
+      }
     }
     return this.innertube;
   }
@@ -357,6 +364,7 @@ class YouTubeService {
 
   parseDuration(duration) {
     // Parse ISO 8601 duration (e.g., PT1M30S) to seconds
+    if (!duration || typeof duration !== 'string') return 0;
     const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
     if (!match) return 0;
     

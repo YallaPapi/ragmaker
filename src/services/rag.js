@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 const EmbeddingService = require('./embeddings');
 const VectorStoreService = require('./vectorStore');
 const config = require('../config');
