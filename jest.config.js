@@ -9,6 +9,7 @@ module.exports = {
   },
   testPathIgnorePatterns: [
     '/node_modules/',
+    '/app/',
     '/taskmaster/',
     '/.taskmaster/',
     '/.claude-flow/',

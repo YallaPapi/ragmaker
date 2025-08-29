@@ -1,0 +1,46 @@
+# Application Icons
+
+This directory contains the application icons in various formats required for different platforms:
+
+## Required Icons:
+
+### Windows (.ico)
+- icon.ico (256x256, 128x128, 64x64, 48x48, 32x32, 16x16)
+
+### macOS (.icns)
+- icon.icns (1024x1024, 512x512, 256x256, 128x128, 64x64, 32x32, 16x16)
+
+### Linux (.png)
+- icon.png (512x512)
+- 16x16.png
+- 32x32.png
+- 48x48.png
+- 64x64.png
+- 128x128.png
+- 256x256.png
+- 512x512.png
+
+## Icon Guidelines:
+
+1. **Style**: Modern, clean design that represents document/knowledge management
+2. **Colors**: Professional color scheme (blues, grays, whites)
+3. **Scalability**: Must look good at all sizes from 16x16 to 1024x1024
+4. **Brand Consistency**: Should match the RagMaker brand identity
+
+## Tools for Icon Creation:
+
+- **Online**: realfavicongenerator.net, icon-icons.com
+- **Desktop**: Adobe Illustrator, Sketch, Figma
+- **Free**: GIMP, Inkscape
+
+## Icon Content Suggestions:
+
+- Document/book symbol with AI/search elements
+- Magnifying glass over documents
+- Knowledge graph visualization
+- Modern "R" lettermark with document elements
+
+## Note:
+
+Replace this file with actual icon files before building the application.
+The electron-builder will automatically use these icons during the build process.

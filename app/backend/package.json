@@ -1,0 +1,85 @@
+{
+  "name": "ragmaker-backend",
+  "version": "1.0.0",
+  "description": "Standalone local backend for RAGMaker desktop application",
+  "main": "src/index.js",
+  "bin": {
+    "ragmaker-backend": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "NODE_ENV=development node src/index.js",
+    "debug": "NODE_ENV=development ENABLE_DEBUG=true LOG_REQUESTS=true node src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "install:embedding-deps": "python -m pip install sentence-transformers torch numpy",
+    "setup:ollama": "echo 'Please install Ollama from https://ollama.ai and run: ollama pull llama3.2:3b'",
+    "setup": "npm run install:embedding-deps && npm run setup:ollama",
+    "health": "curl http://localhost:3012/health || echo 'Server not running'",
+    "lint": "echo 'TODO: Add ESLint configuration'",
+    "clean": "rm -rf node_modules database/*.db logs/*.log",
+    "migrate": "node scripts/migrate-database.js"
+  },
+  "keywords": [
+    "rag",
+    "ai",
+    "embeddings",
+    "vector-search",
+    "local",
+    "desktop",
+    "ollama",
+    "sentence-transformers"
+  ],
+  "author": "RAGMaker Team",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "axios": "^1.11.0",
+    "better-sqlite3": "^11.5.0",
+    "openai": "^5.12.2",
+    "@langchain/core": "^0.3.71",
+    "langchain": "^0.3.30",
+    "helmet": "^8.1.0",
+    "express-rate-limit": "^8.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4",
+    "@types/jest": "^29.5.14",
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/ragmaker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/ragmaker/issues"
+  },
+  "homepage": "https://github.com/your-org/ragmaker#readme",
+  "optionalDependencies": {},
+  "overrides": {},
+  "resolutions": {},
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/index.js",
+      "!src/scripts/**"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  }
+}

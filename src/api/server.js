@@ -42,6 +42,7 @@ const indexingProgress = new Map();
 // Import routes
 const publicRoutes = require('./routes/public');
 const docsRoutes = require('./routes/docs');
+const ragRoutes = require('./routes/rag');
 
 // Documentation and health routes (no auth required)
 app.use('/', docsRoutes);
@@ -51,6 +52,9 @@ app.use('/api', devFriendlyApiKey);
 
 // Public API routes  
 app.use('/api', publicRoutes);
+
+// RAG query/chat routes
+app.use('/api', ragRoutes);
 
 // Initialize vector store with current project
 let vectorStore = null;

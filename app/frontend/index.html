@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: ws: wss: http: https:;">
+    <title>RAGMaker Desktop</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/themes.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="theme-light" data-os="">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-container">
+            <div class="loading-logo">
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2"/>
+                    <path d="M24 32L30 38L40 26" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="loading-text">Loading RAGMaker...</div>
+            <div class="loading-progress">
+                <div class="loading-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app" class="app hidden">
+        <!-- Title Bar (Windows/Linux) -->
+        <div class="title-bar">
+            <div class="title-bar-left">
+                <div class="app-logo">
+                    <svg width="20" height="20" viewBox="0 0 64 64" fill="none">
+                        <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2"/>
+                        <path d="M24 32L30 38L40 26" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <span class="app-title">RAGMaker</span>
+            </div>
+            <div class="title-bar-right">
+                <button class="title-button minimize" aria-label="Minimize">
+                    <svg width="12" height="12" viewBox="0 0 12 12">
+                        <path d="M2 6h8" stroke="currentColor" stroke-width="1"/>
+                    </svg>
+                </button>
+                <button class="title-button maximize" aria-label="Maximize">
+                    <svg width="12" height="12" viewBox="0 0 12 12">
+                        <rect x="2" y="2" width="8" height="8" stroke="currentColor" stroke-width="1" fill="none"/>
+                    </svg>
+                </button>
+                <button class="title-button close" aria-label="Close">
+                    <svg width="12" height="12" viewBox="0 0 12 12">
+                        <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Layout -->
+        <div class="app-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h2>RAGMaker</h2>
+                    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Sidebar">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <nav class="sidebar-nav">
+                    <ul class="nav-list">
+                        <li class="nav-item active">
+                            <button class="nav-link" data-view="chat">
+                                <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20">
+                                    <path d="M2 3h16c.55 0 1 .45 1 1v9c0 .55-.45 1-1 1H6l-4 3v-3H2c-.55 0-1-.45-1-1V4c0-.55.45-1 1-1z" fill="currentColor"/>
+                                </svg>
+                                Chat
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="documents">
+                                <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20">
+                                    <path d="M4 2h8l4 4v10c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2z" fill="currentColor"/>
+                                </svg>
+                                Documents
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="projects">
+                                <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20">
+                                    <path d="M3 4h14c.55 0 1 .45 1 1v10c0 .55-.45 1-1 1H3c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1zM3 2h14v1H3V2z" fill="currentColor"/>
+                                </svg>
+                                Projects
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="search">
+                                <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20">
+                                    <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
+                                    <path d="15 15l-2.5-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                Search
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-view="channels">
+                                <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20">
+                                    <rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                                    <path d="M8 9l4-2v6l-4-2V9z" fill="currentColor"/>
+                                </svg>
+                                Channels
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <button class="nav-link" data-view="settings">
+                        <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20">
+                            <path d="M10 3v2.5M10 14.5V17M3 10h2.5M14.5 10H17M5.5 5.5L7.25 7.25M12.75 12.75L14.5 14.5M5.5 14.5L7.25 12.75M12.75 7.25L14.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                        </svg>
+                        Settings
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Chat View -->
+                <div class="view" id="chat-view">
+                    <div class="chat-container">
+                        <div class="chat-header">
+                            <h1>Chat with RAG</h1>
+                            <div class="chat-controls">
+                                <select class="profile-selector" id="profileSelector">
+                                    <option value="default">Default Profile</option>
+                                    <option value="technical">Technical</option>
+                                    <option value="creative">Creative</option>
+                                    <option value="analytical">Analytical</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearChat">Clear Chat</button>
+                            </div>
+                        </div>
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="welcome-message">
+                                <div class="welcome-icon">
+                                    <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+                                        <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2"/>
+                                        <path d="M24 32L30 38L40 26" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <h3>Welcome to RAGMaker</h3>
+                                <p>Ask questions about your indexed documents and YouTube channels.</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <div class="chat-input">
+                                <textarea 
+                                    id="messageInput" 
+                                    placeholder="Ask a question about your documents..."
+                                    rows="1"
+                                    maxlength="2000"
+                                ></textarea>
+                                <button class="send-button" id="sendButton" disabled>
+                                    <svg width="20" height="20" viewBox="0 0 20 20">
+                                        <path d="M2 10L18 2L12 10L18 18L2 10Z" fill="currentColor"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="input-footer">
+                                <div class="char-counter">
+                                    <span id="charCount">0</span>/2000
+                                </div>
+                                <div class="input-tips">
+                                    <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents View -->
+                <div class="view hidden" id="documents-view">
+                    <div class="documents-container">
+                        <div class="documents-header">
+                            <h1>Document Management</h1>
+                            <div class="document-controls">
+                                <button class="btn btn-primary" id="uploadDocuments">
+                                    <svg width="16" height="16" viewBox="0 0 16 16">
+                                        <path d="M8 2v6M5 5l3-3 3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M3 10v2c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                    </svg>
+                                    Upload Documents
+                                </button>
+                                <button class="btn btn-secondary" id="refreshDocuments">
+                                    <svg width="16" height="16" viewBox="0 0 16 16">
+                                        <path d="M1 4v2h2M1 6c0-2.2 1.8-4 4-4 1.5 0 2.8.8 3.5 2M15 12v-2h-2M15 10c0 2.2-1.8 4-4 4-1.5 0-2.8-.8-3.5-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div class="documents-content">
+                            <div class="documents-grid" id="documentsGrid">
+                                <div class="empty-state">
+                                    <div class="empty-icon">
+                                        <svg width="64" height="64" viewBox="0 0 64 64">
+                                            <rect x="12" y="8" width="40" height="48" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+                                            <path d="M20 20h24M20 28h24M20 36h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    </div>
+                                    <h3>No documents yet</h3>
+                                    <p>Upload documents to start building your knowledge base.</p>
+                                    <button class="btn btn-primary" onclick="document.getElementById('uploadDocuments').click()">
+                                        Upload Your First Document
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other views will be added here -->
+                <div class="view hidden" id="projects-view">
+                    <!-- Project management interface will be implemented -->
+                </div>
+
+                <div class="view hidden" id="search-view">
+                    <!-- Search interface will be implemented -->
+                </div>
+
+                <div class="view hidden" id="channels-view">
+                    <!-- YouTube channels interface will be implemented -->
+                </div>
+
+                <div class="view hidden" id="settings-view">
+                    <!-- Settings interface will be implemented -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu hidden" id="contextMenu">
+        <ul class="context-menu-list">
+            <li><button class="context-menu-item" data-action="copy">Copy</button></li>
+            <li><button class="context-menu-item" data-action="paste">Paste</button></li>
+            <li class="separator"></li>
+            <li><button class="context-menu-item" data-action="select-all">Select All</button></li>
+        </ul>
+    </div>
+
+    <!-- File Upload Modal -->
+    <div class="modal-overlay hidden" id="uploadModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Upload Documents</h2>
+                <button class="modal-close" id="closeUploadModal">
+                    <svg width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">
+                        <svg width="48" height="48" viewBox="0 0 48 48">
+                            <path d="M24 8v16M16 16l8-8 8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M8 28v8c0 2.2 1.8 4 4 4h24c2.2 0 4-1.8 4-4v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <p>Drag and drop files here, or click to browse</p>
+                    <input type="file" id="fileInput" multiple accept=".txt,.md,.pdf,.doc,.docx">
+                </div>
+                <div class="upload-progress hidden" id="uploadProgress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Uploading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div class="notifications" id="notifications"></div>
+
+    <!-- Scripts -->
+    <script src="src/utils/constants.js"></script>
+    <script src="src/services/api-browser.js"></script>
+    <script src="src/services/notification-browser.js"></script>
+    <script src="src/app-browser.js"></script>
+</body>
+</html>

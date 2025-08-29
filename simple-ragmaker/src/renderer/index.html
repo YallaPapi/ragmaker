@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple RAGMaker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>🤖 Simple RAGMaker</h1>
+            <p>Your Desktop RAG Assistant</p>
+        </header>
+
+        <div class="main-content">
+            <!-- File Upload Section -->
+            <div class="file-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <p>Click to upload documents or drag and drop</p>
+                    <button id="selectFileBtn" class="btn btn-primary">Select Files</button>
+                </div>
+                <div id="fileList" class="file-list"></div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="chat-section">
+                <div class="chat-container">
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="message bot-message">
+                            <div class="message-content">
+                                <strong>RAG Assistant:</strong> Welcome! Upload some documents and ask me questions about them.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-container">
+                        <input type="text" id="messageInput" placeholder="Ask a question about your documents..." class="chat-input">
+                        <button id="sendBtn" class="btn btn-send">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="app-footer">
+            <div class="status-bar">
+                <span id="statusText">Ready</span>
+                <span id="documentCount">0 documents loaded</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

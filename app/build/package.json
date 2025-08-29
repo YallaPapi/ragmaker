@@ -1,0 +1,72 @@
+{
+  "name": "ragmaker-standalone-build",
+  "version": "1.0.0",
+  "description": "Build system for RagMaker Standalone Desktop Application",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:all",
+    "build:all": "npm run build:win && npm run build:mac && npm run build:linux",
+    "build:win": "cross-env PLATFORM=win electron-builder --win",
+    "build:mac": "cross-env PLATFORM=mac electron-builder --mac",
+    "build:linux": "cross-env PLATFORM=linux electron-builder --linux",
+    "build:win:portable": "cross-env PLATFORM=win electron-builder --win portable",
+    "build:mac:dmg": "cross-env PLATFORM=mac electron-builder --mac dmg",
+    "build:linux:appimage": "cross-env PLATFORM=linux electron-builder --linux AppImage",
+    "dist": "npm run build",
+    "pack": "electron-builder --dir",
+    "pack:all": "npm run pack:win && npm run pack:mac && npm run pack:linux",
+    "pack:win": "cross-env PLATFORM=win electron-builder --win --dir",
+    "pack:mac": "cross-env PLATFORM=mac electron-builder --mac --dir",
+    "pack:linux": "cross-env PLATFORM=linux electron-builder --linux --dir",
+    "sign:setup": "node scripts/setup-signing.js",
+    "sign:verify": "node scripts/verify-signatures.js",
+    "release": "npm run build && npm run upload:artifacts",
+    "release:github": "npm run build && electron-builder --publish=always",
+    "release:s3": "npm run build && node scripts/upload-s3.js",
+    "upload:artifacts": "node scripts/upload-artifacts.js",
+    "test:build": "node scripts/test-build.js",
+    "clean": "rimraf dist && rimraf ../desktop/dist",
+    "clean:cache": "rimraf ~/.cache/electron && rimraf ~/.cache/electron-builder",
+    "prepare:resources": "node scripts/prepare-resources.js",
+    "prepare:models": "node scripts/prepare-models.js",
+    "prepare:databases": "node scripts/prepare-databases.js",
+    "validate:config": "node scripts/validate-config.js",
+    "audit:security": "npm audit && node scripts/security-audit.js",
+    "install:deps": "npm install && cd ../desktop && npm install"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-notarize": "^1.2.2",
+    "rimraf": "^5.0.5",
+    "aws-sdk": "^2.1515.0",
+    "chalk": "^4.1.2",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.10",
+    "moment": "^2.30.1",
+    "node-fetch": "^3.3.2",
+    "semver": "^7.5.4",
+    "tar": "^6.2.0",
+    "yauzl": "^3.0.0",
+    "yazl": "^2.5.1"
+  },
+  "build": {
+    "extends": "./electron-builder.config.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ragmaker/ragmaker-standalone.git"
+  },
+  "keywords": [
+    "electron",
+    "build",
+    "packaging",
+    "distribution",
+    "rag",
+    "ai",
+    "desktop"
+  ],
+  "author": "RagMaker Team",
+  "license": "MIT"
+}

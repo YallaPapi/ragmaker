@@ -1,0 +1,20 @@
+[Desktop Entry]
+Name=<%= productName %>
+Comment=<%= description %>
+Exec="<%= installDir %>/ragmaker-desktop" %U
+Terminal=false
+Type=Application
+Icon=ragmaker-desktop
+StartupWMClass=ragmaker-desktop
+MimeType=text/plain;application/pdf;
+Categories=Office;Productivity;
+Keywords=rag;ai;documents;processing;productivity;
+Actions=new-document;open-folder;
+
+[Desktop Action new-document]
+Name=New Document
+Exec="<%= installDir %>/ragmaker-desktop" --new-document
+
+[Desktop Action open-folder]  
+Name=Open Folder
+Exec="<%= installDir %>/ragmaker-desktop" --open-folder

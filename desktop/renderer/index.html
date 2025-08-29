@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAGMaker - Desktop</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/desktop-components.css">
+    <link rel="stylesheet" href="styles/themes.css">
+</head>
+<body class="desktop-app">
+    <!-- Desktop Title Bar (Custom) -->
+    <div class="title-bar">
+        <div class="title-bar-left">
+            <img src="assets/logo.svg" alt="RAGMaker" class="app-logo">
+            <span class="app-title">RAGMaker</span>
+        </div>
+        <div class="title-bar-center">
+            <span class="current-project" id="currentProjectTitle">Select Project</span>
+        </div>
+        <div class="title-bar-right">
+            <button class="title-bar-button" id="minimizeBtn" title="Minimize (Ctrl+M)">−</button>
+            <button class="title-bar-button" id="maximizeBtn" title="Maximize/Restore (Ctrl+Shift+M)">□</button>
+            <button class="title-bar-button close-btn" id="closeBtn" title="Close (Ctrl+Q)">×</button>
+        </div>
+    </div>
+
+    <!-- Main Desktop Layout -->
+    <div class="desktop-container">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar (Ctrl+B)">☰</button>
+                <div class="project-quick-selector">
+                    <select id="quickProjectSelect" title="Quick Project Switch (Ctrl+P)">
+                        <option value="">Select Project...</option>
+                    </select>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <h3 class="nav-section-title">RAG Operations</h3>
+                    <ul class="nav-list">
+                        <li><a href="#" class="nav-item active" data-tab="chat" title="Chat Interface (Ctrl+1)">
+                            <span class="nav-icon">💬</span>
+                            <span class="nav-label">Chat</span>
+                            <kbd class="shortcut">Ctrl+1</kbd>
+                        </a></li>
+                        <li><a href="#" class="nav-item" data-tab="channels" title="Channel Management (Ctrl+2)">
+                            <span class="nav-icon">📺</span>
+                            <span class="nav-label">Channels</span>
+                            <kbd class="shortcut">Ctrl+2</kbd>
+                        </a></li>
+                        <li><a href="#" class="nav-item" data-tab="knowledge" title="Knowledge Base (Ctrl+3)">
+                            <span class="nav-icon">🧠</span>
+                            <span class="nav-label">Knowledge Base</span>
+                            <kbd class="shortcut">Ctrl+3</kbd>
+                        </a></li>
+                        <li><a href="#" class="nav-item" data-tab="analytics" title="Analytics (Ctrl+4)">
+                            <span class="nav-icon">📊</span>
+                            <span class="nav-label">Analytics</span>
+                            <kbd class="shortcut">Ctrl+4</kbd>
+                        </a></li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <h3 class="nav-section-title">Project Management</h3>
+                    <ul class="nav-list">
+                        <li><a href="#" class="nav-item" data-tab="projects" title="Projects (Ctrl+5)">
+                            <span class="nav-icon">📁</span>
+                            <span class="nav-label">Projects</span>
+                            <kbd class="shortcut">Ctrl+5</kbd>
+                        </a></li>
+                        <li><a href="#" class="nav-item" data-tab="settings" title="Settings (Ctrl+,)">
+                            <span class="nav-icon">⚙️</span>
+                            <span class="nav-label">Settings</span>
+                            <kbd class="shortcut">Ctrl+,</kbd>
+                        </a></li>
+                    </ul>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="connection-status">
+                    <div class="status-indicator" id="connectionStatus"></div>
+                    <span class="status-text" id="connectionText">Connected</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Desktop Toolbar -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <button class="toolbar-btn" id="newProjectBtn" title="New Project (Ctrl+N)">
+                        <span class="btn-icon">➕</span>
+                        <span class="btn-label">New Project</span>
+                    </button>
+                    <button class="toolbar-btn" id="importBtn" title="Import Data (Ctrl+I)">
+                        <span class="btn-icon">📥</span>
+                        <span class="btn-label">Import</span>
+                    </button>
+                    <button class="toolbar-btn" id="exportBtn" title="Export Data (Ctrl+E)">
+                        <span class="btn-icon">📤</span>
+                        <span class="btn-label">Export</span>
+                    </button>
+                </div>
+                
+                <div class="toolbar-center">
+                    <div class="search-box">
+                        <input type="text" id="globalSearch" placeholder="Search across all content... (Ctrl+F)" class="search-input">
+                        <button class="search-btn" id="searchBtn">🔍</button>
+                    </div>
+                </div>
+                
+                <div class="toolbar-right">
+                    <button class="toolbar-btn" id="themeToggle" title="Toggle Theme (Ctrl+T)">
+                        <span class="btn-icon">🌓</span>
+                    </button>
+                    <button class="toolbar-btn" id="helpBtn" title="Help (F1)">
+                        <span class="btn-icon">❓</span>
+                    </button>
+                    <div class="user-menu">
+                        <button class="user-avatar" id="userMenuBtn">
+                            <span class="avatar-icon">👤</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content Container -->
+            <div class="tab-content-container">
+                <!-- Chat Tab -->
+                <div class="tab-content active" id="chat-content">
+                    <div class="chat-layout">
+                        <div class="chat-main">
+                            <div class="messages-container" id="messagesContainer">
+                                <div class="welcome-message">
+                                    <h2>Welcome to RAGMaker Desktop</h2>
+                                    <p>Ask questions about your YouTube knowledge base or manage your projects.</p>
+                                    <div class="quick-actions">
+                                        <button class="quick-action-btn" data-question="What channels do I have indexed?">
+                                            📺 My Channels
+                                        </button>
+                                        <button class="quick-action-btn" data-question="Show me recent analytics">
+                                            📊 Analytics
+                                        </button>
+                                        <button class="quick-action-btn" data-question="Help me find content about...">
+                                            🔍 Search
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="chat-input-container">
+                                <form class="chat-form" id="chatForm">
+                                    <div class="input-wrapper">
+                                        <textarea id="messageInput" placeholder="Ask anything about your knowledge base..." class="message-input" rows="1"></textarea>
+                                        <div class="input-actions">
+                                            <button type="button" class="attachment-btn" id="attachmentBtn" title="Attach File (Ctrl+Shift+A)">📎</button>
+                                            <button type="submit" class="send-btn" id="sendBtn" title="Send (Enter)">Send</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="chat-sidebar" id="chatSidebar">
+                            <div class="chat-sidebar-header">
+                                <h3>Context & Settings</h3>
+                                <button class="collapse-btn" id="chatSidebarToggle">←</button>
+                            </div>
+                            <div class="chat-sidebar-content">
+                                <div class="context-section">
+                                    <h4>Response Style</h4>
+                                    <select id="responseStyle" class="form-select">
+                                        <option value="professional">Professional</option>
+                                        <option value="simple">Simple (3rd grade)</option>
+                                        <option value="detailed">Detailed</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+                                <div class="context-section">
+                                    <h4>Active Project</h4>
+                                    <div class="project-context" id="projectContext">
+                                        <span class="project-name">None Selected</span>
+                                        <button class="change-project-btn">Change</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Channels Tab -->
+                <div class="tab-content" id="channels-content">
+                    <div class="channels-layout">
+                        <div class="channels-header">
+                            <h2>Channel Management</h2>
+                            <div class="channels-actions">
+                                <button class="btn btn-primary" id="addChannelBtn">Add Channel</button>
+                                <button class="btn btn-secondary" id="bulkImportBtn">Bulk Import</button>
+                                <button class="btn btn-secondary" id="refreshAllBtn">Refresh All</button>
+                            </div>
+                        </div>
+                        <div class="channels-grid" id="channelsGrid">
+                            <!-- Channels will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Knowledge Base Tab -->
+                <div class="tab-content" id="knowledge-content">
+                    <div class="knowledge-layout">
+                        <div class="knowledge-header">
+                            <h2>Knowledge Base</h2>
+                            <div class="knowledge-stats" id="knowledgeStats">
+                                <!-- Stats will be populated here -->
+                            </div>
+                        </div>
+                        <div class="knowledge-browser" id="knowledgeBrowser">
+                            <!-- Knowledge content will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div class="tab-content" id="analytics-content">
+                    <div class="analytics-layout">
+                        <div class="analytics-header">
+                            <h2>Analytics Dashboard</h2>
+                            <div class="analytics-controls">
+                                <select id="analyticsTimeframe" class="form-select">
+                                    <option value="7d">Last 7 days</option>
+                                    <option value="30d">Last 30 days</option>
+                                    <option value="90d">Last 90 days</option>
+                                    <option value="all">All time</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="analytics-dashboard" id="analyticsDashboard">
+                            <!-- Analytics charts and data will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Projects Tab -->
+                <div class="tab-content" id="projects-content">
+                    <div class="projects-layout">
+                        <div class="projects-header">
+                            <h2>Project Management</h2>
+                            <button class="btn btn-primary" id="createProjectBtn">Create New Project</button>
+                        </div>
+                        <div class="projects-grid" id="projectsGrid">
+                            <!-- Projects will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div class="tab-content" id="settings-content">
+                    <div class="settings-layout">
+                        <div class="settings-header">
+                            <h2>Settings</h2>
+                        </div>
+                        <div class="settings-content" id="settingsContent">
+                            <!-- Settings panels will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Context Menus -->
+    <div class="context-menu" id="contextMenu">
+        <!-- Context menu items will be populated dynamically -->
+    </div>
+
+    <!-- Desktop Notifications -->
+    <div class="desktop-notifications" id="desktopNotifications">
+        <!-- Notifications will appear here -->
+    </div>
+
+    <!-- Drag & Drop Overlay -->
+    <div class="drag-drop-overlay" id="dragDropOverlay">
+        <div class="drag-drop-content">
+            <div class="drag-drop-icon">📁</div>
+            <div class="drag-drop-text">Drop files here to import</div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/desktop-core.js"></script>
+    <script src="js/desktop-ui.js"></script>
+    <script src="js/keyboard-shortcuts.js"></script>
+    <script src="js/drag-drop.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/window-controls.js"></script>
+    <script src="js/context-menus.js"></script>
+    <script src="js/tabs.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

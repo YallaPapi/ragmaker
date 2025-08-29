@@ -1,0 +1,400 @@
+name: Build and Release Desktop Application
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - beta
+          - release
+      platforms:
+        description: 'Platforms to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
+          - linux
+
+env:
+  NODE_VERSION: '18'
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+  # Security and dependency checks
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd desktop && npm ci
+
+      - name: Run security audit
+        run: |
+          npm audit --audit-level=high
+          cd desktop && npm audit --audit-level=high
+
+      - name: Check for vulnerable dependencies
+        run: |
+          npx audit-ci --moderate
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # Build matrix for all platforms
+  build:
+    name: Build ${{ matrix.os }}
+    needs: [security-scan]
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            cache_key: windows
+            artifact_name: windows-artifacts
+            
+          - os: macos-latest
+            platform: mac
+            cache_key: macos
+            artifact_name: macos-artifacts
+            
+          - os: ubuntu-latest
+            platform: linux
+            cache_key: linux
+            artifact_name: linux-artifacts
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      # Platform-specific setup
+      - name: Setup Windows build environment
+        if: matrix.os == 'windows-latest'
+        run: |
+          npm install -g windows-build-tools
+          choco install nsis
+
+      - name: Setup macOS build environment
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install create-dmg
+          # Setup keychain for code signing
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            echo "$APPLE_CERTIFICATE" | base64 -d > certificate.p12
+            security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+            security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          fi
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      - name: Setup Linux build environment
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3-dev libatk-bridge2.0-dev libdrm2 libxss1 libgtk-3-dev libxrandr2 libasound2-dev
+          sudo apt-get install -y rpm
+          sudo snap install snapcraft --classic
+
+      # Cache dependencies
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: ${{ runner.os }}-electron-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
+
+      - name: Cache Electron Builder
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: ${{ runner.os }}-electron-builder-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-builder-
+
+      # Install dependencies
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install desktop dependencies
+        run: |
+          cd desktop
+          npm ci
+
+      # Run tests
+      - name: Run tests
+        run: |
+          npm test
+          cd desktop && npm test
+
+      # Build application
+      - name: Build Electron application
+        run: |
+          cd desktop
+          npm run build:${{ matrix.platform }}
+        env:
+          # Windows code signing
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          
+          # macOS code signing
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_NAME: ${{ secrets.APPLE_IDENTITY }}
+          
+          # GitHub releases
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # S3 releases (optional)
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_REGION: ${{ secrets.S3_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          
+          # Release configuration
+          RELEASE_TYPE: ${{ github.event.inputs.release_type || 'development' }}
+          UPDATE_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'latest' || 'beta' }}
+
+      # Upload build artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            desktop/dist/**/*
+            !desktop/dist/**/*.blockmap
+            !desktop/dist/**/mac/**/*.dSYM/**/*
+          retention-days: 30
+
+      # Calculate checksums
+      - name: Calculate checksums
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd desktop/dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            Get-ChildItem -Recurse -File | ForEach-Object { 
+              $hash = Get-FileHash $_.FullName -Algorithm SHA256
+              "$($hash.Hash)  $($_.Name)" | Out-File -Append checksums-${{ matrix.platform }}.txt
+            }
+          else
+            find . -type f -exec sha256sum {} + > checksums-${{ matrix.platform }}.txt
+          fi
+          
+      - name: Upload checksums
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.platform }}
+          path: desktop/dist/checksums-${{ matrix.platform }}.txt
+
+  # Create release
+  release:
+    name: Create Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_type == 'release'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Download all artifacts
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: dist/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: dist/macos
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: dist/linux
+
+      # Download checksums
+      - name: Download checksums
+        uses: actions/download-artifact@v4
+        with:
+          pattern: checksums-*
+          path: dist/checksums
+          merge-multiple: true
+
+      # Generate release notes
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            # Extract latest version from changelog
+            awk '/^## \[/ { if (!found) { found=1; next } } found && /^## \[/ { exit } found' CHANGELOG.md > release_notes.md
+          else
+            echo "Automated release for ${{ github.ref_name }}" > release_notes.md
+            echo "" >> release_notes.md
+            echo "### Changes" >> release_notes.md
+            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> release_notes.md
+          fi
+          
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # Create GitHub release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: RagMaker Desktop ${{ github.ref_name }}
+          body: ${{ steps.release_notes.outputs.release_notes }}
+          draft: ${{ github.event.inputs.release_type == 'development' }}
+          prerelease: ${{ github.event.inputs.release_type == 'beta' || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          files: |
+            dist/**/*.exe
+            dist/**/*.msi
+            dist/**/*.dmg
+            dist/**/*.pkg
+            dist/**/*.zip
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*.rpm
+            dist/**/*.tar.gz
+            dist/**/*.snap
+            dist/checksums/*.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Upload to S3 (optional)
+      - name: Upload to S3
+        if: secrets.S3_BUCKET != ''
+        run: |
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET }}/releases/${{ github.ref_name }}/ \
+            --exclude "*" \
+            --include "*.exe" \
+            --include "*.msi" \
+            --include "*.dmg" \
+            --include "*.pkg" \
+            --include "*.zip" \
+            --include "*.AppImage" \
+            --include "*.deb" \
+            --include "*.rpm" \
+            --include "*.tar.gz" \
+            --include "*.snap" \
+            --include "*.txt" \
+            --acl public-read
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.S3_REGION }}
+
+      # Update latest.yml files for auto-updater
+      - name: Update auto-updater manifests
+        run: |
+          # Copy latest.yml files to a predictable location for auto-updater
+          find dist/ -name "latest*.yml" -exec cp {} dist/ \;
+          
+          # Upload manifests to S3 or GitHub Pages
+          if [ -n "${{ secrets.S3_BUCKET }}" ]; then
+            aws s3 cp dist/latest.yml s3://${{ secrets.S3_BUCKET }}/latest.yml --acl public-read
+            aws s3 cp dist/latest-mac.yml s3://${{ secrets.S3_BUCKET }}/latest-mac.yml --acl public-read
+            aws s3 cp dist/latest-linux.yml s3://${{ secrets.S3_BUCKET }}/latest-linux.yml --acl public-read
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.S3_REGION }}
+
+  # Notify on completion
+  notify:
+    name: Notify Build Complete
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Notify Success
+        if: needs.release.result == 'success'
+        run: |
+          echo "✅ Build and release completed successfully!"
+          echo "Release: ${{ github.ref_name }}"
+          echo "Artifacts uploaded to GitHub Releases"
+          
+      - name: Notify Failure
+        if: needs.release.result == 'failure'
+        run: |
+          echo "❌ Build and release failed!"
+          echo "Please check the workflow logs for details"
+
+      # Optional: Send notifications to Slack/Discord/Email
+      - name: Send Slack notification
+        if: always() && secrets.SLACK_WEBHOOK != ''
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#releases'
+          text: |
+            RagMaker Desktop Build ${{ job.status == 'success' && '✅' || '❌' }}
+            Version: ${{ github.ref_name }}
+            Platform: All
+            ${{ job.status == 'success' && 'Download available on GitHub Releases' || 'Check workflow logs for details' }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

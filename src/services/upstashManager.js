@@ -177,9 +177,7 @@ class UpstashManager {
     return this.projects[this.currentProject];
   }
 
-  getAllProjects() {
-    return Object.values(this.projects);
-  }
+  // (Removed duplicate getAllProjects definition)
 
   getProjectCredentials(projectId) {
     const project = this.projects[projectId || this.currentProject];

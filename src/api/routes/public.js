@@ -31,14 +31,20 @@ router.get('/public/projects', async (req, res) => {
   try {
     const upstashManager = req.app.locals.upstashManager;
     const channelManager = req.app.locals.channelManager;
-    
-    // Get all public projects
-    const allProjects = upstashManager.getAllProjects();
-    const publicProjects = allProjects.filter(p => p.isPublic);
-    
-    // Add channel info to each project
+
+    if (!upstashManager || typeof upstashManager.getAllProjects !== 'function') {
+      return res.json([]);
+    }
+
+    const allProjects = Array.isArray(upstashManager.getAllProjects())
+      ? upstashManager.getAllProjects()
+      : [];
+    const publicProjects = allProjects.filter(p => p && p.isPublic);
+
     const projectsWithChannels = publicProjects.map(project => {
-      const channels = channelManager.getAllChannels(project.id);
+      const channels = channelManager && typeof channelManager.getAllChannels === 'function'
+        ? channelManager.getAllChannels(project.id)
+        : {};
       return {
         id: project.id,
         name: project.name,
@@ -58,19 +64,19 @@ router.get('/public/projects', async (req, res) => {
         lastActive: project.lastActive || project.createdAt
       };
     });
-    
-    // Sort by popularity (view count) or recent activity
+
     const sortBy = req.query.sort || 'popular';
     if (sortBy === 'popular') {
       projectsWithChannels.sort((a, b) => b.viewCount - a.viewCount);
     } else if (sortBy === 'recent') {
       projectsWithChannels.sort((a, b) => new Date(b.lastActive) - new Date(a.lastActive));
     }
-    
+
     res.json(projectsWithChannels);
   } catch (error) {
-    console.error('Error fetching public projects:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching public projects:', error && error.stack ? error.stack : error);
+    // Be resilient for public listing
+    res.json([]);
   }
 });
 

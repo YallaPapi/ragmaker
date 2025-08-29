@@ -1,0 +1,313 @@
+/* Theme Styles - RAGMaker Desktop */
+
+/* Dark Theme */
+body.theme-dark {
+    /* Primary Colors */
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-primary-light: rgba(59, 130, 246, 0.1);
+    --color-secondary: #6b7280;
+    --color-secondary-hover: #4b5563;
+    
+    /* Background Colors */
+    --color-bg-primary: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-tertiary: #334155;
+    --color-bg-hover: #1e293b;
+    --color-bg-active: #334155;
+    
+    /* Text Colors */
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #cbd5e1;
+    --color-text-tertiary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-text-inverse: #0f172a;
+    
+    /* Border Colors */
+    --color-border-primary: #334155;
+    --color-border-secondary: #475569;
+    --color-border-focus: #3b82f6;
+    
+    /* Status Colors - Adjusted for dark theme */
+    --color-success: #22c55e;
+    --color-success-light: rgba(34, 197, 94, 0.1);
+    --color-warning: #fbbf24;
+    --color-warning-light: rgba(251, 191, 36, 0.1);
+    --color-error: #f87171;
+    --color-error-light: rgba(248, 113, 113, 0.1);
+    --color-info: #60a5fa;
+    --color-info-light: rgba(96, 165, 250, 0.1);
+    
+    /* Shadows - Adjusted for dark theme */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+}
+
+/* High Contrast Theme */
+body.theme-high-contrast {
+    /* Primary Colors */
+    --color-primary: #0066cc;
+    --color-primary-hover: #0052a3;
+    --color-primary-light: #e6f3ff;
+    --color-secondary: #333333;
+    --color-secondary-hover: #1a1a1a;
+    
+    /* Background Colors */
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f5f5f5;
+    --color-bg-tertiary: #e0e0e0;
+    --color-bg-hover: #f0f0f0;
+    --color-bg-active: #d0d0d0;
+    
+    /* Text Colors */
+    --color-text-primary: #000000;
+    --color-text-secondary: #333333;
+    --color-text-tertiary: #666666;
+    --color-text-muted: #999999;
+    --color-text-inverse: #ffffff;
+    
+    /* Border Colors */
+    --color-border-primary: #333333;
+    --color-border-secondary: #666666;
+    --color-border-focus: #0066cc;
+    
+    /* Status Colors */
+    --color-success: #008000;
+    --color-success-light: #e6ffe6;
+    --color-warning: #ff8c00;
+    --color-warning-light: #fff4e6;
+    --color-error: #cc0000;
+    --color-error-light: #ffe6e6;
+    --color-info: #0066cc;
+    --color-info-light: #e6f3ff;
+}
+
+/* System Theme Detection */
+@media (prefers-color-scheme: dark) {
+    body.theme-system {
+        /* Copy dark theme variables */
+        --color-primary: #3b82f6;
+        --color-primary-hover: #2563eb;
+        --color-primary-light: rgba(59, 130, 246, 0.1);
+        --color-secondary: #6b7280;
+        --color-secondary-hover: #4b5563;
+        
+        --color-bg-primary: #0f172a;
+        --color-bg-secondary: #1e293b;
+        --color-bg-tertiary: #334155;
+        --color-bg-hover: #1e293b;
+        --color-bg-active: #334155;
+        
+        --color-text-primary: #f8fafc;
+        --color-text-secondary: #cbd5e1;
+        --color-text-tertiary: #94a3b8;
+        --color-text-muted: #64748b;
+        --color-text-inverse: #0f172a;
+        
+        --color-border-primary: #334155;
+        --color-border-secondary: #475569;
+        --color-border-focus: #3b82f6;
+        
+        --color-success: #22c55e;
+        --color-success-light: rgba(34, 197, 94, 0.1);
+        --color-warning: #fbbf24;
+        --color-warning-light: rgba(251, 191, 36, 0.1);
+        --color-error: #f87171;
+        --color-error-light: rgba(248, 113, 113, 0.1);
+        --color-info: #60a5fa;
+        --color-info-light: rgba(96, 165, 250, 0.1);
+        
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+        --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+    }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Theme Transition */
+body {
+    transition: 
+        background-color var(--transition-normal),
+        color var(--transition-normal);
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+    background: none;
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.theme-toggle:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-secondary);
+}
+
+/* Theme specific icons */
+.theme-light .theme-toggle .dark-icon,
+.theme-dark .theme-toggle .light-icon,
+.theme-system .theme-toggle .light-icon,
+.theme-system .theme-toggle .dark-icon {
+    display: none;
+}
+
+.theme-light .theme-toggle .light-icon,
+.theme-dark .theme-toggle .dark-icon {
+    display: block;
+}
+
+/* System theme follows OS preference */
+@media (prefers-color-scheme: dark) {
+    .theme-system .theme-toggle .dark-icon {
+        display: block;
+    }
+    .theme-system .theme-toggle .light-icon {
+        display: none;
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    .theme-system .theme-toggle .light-icon {
+        display: block;
+    }
+    .theme-system .theme-toggle .dark-icon {
+        display: none;
+    }
+}
+
+/* Color Mode Specific Styles */
+
+/* Dark mode scrollbars */
+body.theme-dark ::-webkit-scrollbar-track {
+    background: var(--color-bg-tertiary);
+}
+
+body.theme-dark ::-webkit-scrollbar-thumb {
+    background: var(--color-border-secondary);
+}
+
+body.theme-dark ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-tertiary);
+}
+
+/* Dark mode selection */
+body.theme-dark ::selection {
+    background: rgba(59, 130, 246, 0.3);
+    color: var(--color-text-primary);
+}
+
+/* High contrast mode adjustments */
+body.theme-high-contrast .btn {
+    border-width: 2px;
+    font-weight: 600;
+}
+
+body.theme-high-contrast .form-input,
+body.theme-high-contrast .form-select,
+body.theme-high-contrast .form-textarea {
+    border-width: 2px;
+}
+
+body.theme-high-contrast .form-input:focus,
+body.theme-high-contrast .form-select:focus,
+body.theme-high-contrast .form-textarea:focus {
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.3);
+}
+
+/* Accent Color Themes */
+body.accent-blue {
+    --color-primary: #2563eb;
+    --color-primary-hover: #1d4ed8;
+    --color-primary-light: #dbeafe;
+}
+
+body.accent-green {
+    --color-primary: #16a34a;
+    --color-primary-hover: #15803d;
+    --color-primary-light: #dcfce7;
+}
+
+body.accent-purple {
+    --color-primary: #9333ea;
+    --color-primary-hover: #7c3aed;
+    --color-primary-light: #f3e8ff;
+}
+
+body.accent-red {
+    --color-primary: #dc2626;
+    --color-primary-hover: #b91c1c;
+    --color-primary-light: #fecaca;
+}
+
+body.accent-orange {
+    --color-primary: #ea580c;
+    --color-primary-hover: #c2410c;
+    --color-primary-light: #fed7aa;
+}
+
+body.accent-pink {
+    --color-primary: #db2777;
+    --color-primary-hover: #be185d;
+    --color-primary-light: #fce7f3;
+}
+
+/* Dark theme accent adjustments */
+body.theme-dark.accent-blue {
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-primary-light: rgba(59, 130, 246, 0.1);
+}
+
+body.theme-dark.accent-green {
+    --color-primary: #22c55e;
+    --color-primary-hover: #16a34a;
+    --color-primary-light: rgba(34, 197, 94, 0.1);
+}
+
+body.theme-dark.accent-purple {
+    --color-primary: #a855f7;
+    --color-primary-hover: #9333ea;
+    --color-primary-light: rgba(168, 85, 247, 0.1);
+}
+
+body.theme-dark.accent-red {
+    --color-primary: #f87171;
+    --color-primary-hover: #ef4444;
+    --color-primary-light: rgba(248, 113, 113, 0.1);
+}
+
+body.theme-dark.accent-orange {
+    --color-primary: #fb923c;
+    --color-primary-hover: #f97316;
+    --color-primary-light: rgba(251, 146, 60, 0.1);
+}
+
+body.theme-dark.accent-pink {
+    --color-primary: #f472b6;
+    --color-primary-hover: #ec4899;
+    --color-primary-light: rgba(244, 114, 182, 0.1);
+}

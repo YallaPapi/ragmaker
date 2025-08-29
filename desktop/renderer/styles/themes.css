@@ -1,0 +1,413 @@
+/* Theme System for RAGMaker Desktop */
+
+/* Base Theme Variables (Already defined in main.css) */
+/* This file contains theme-specific overrides and additional theming */
+
+/* High Contrast Theme */
+[data-theme="high-contrast"] {
+  --color-primary: #0066cc;
+  --color-primary-dark: #004499;
+  --color-secondary: #ff6600;
+  --color-accent: #00cc66;
+  
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #1a1a1a;
+  --color-bg-tertiary: #333333;
+  --color-surface: #1a1a1a;
+  --color-surface-hover: #333333;
+  
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #cccccc;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #000000;
+  
+  --color-border: #666666;
+  --color-border-light: #555555;
+  --color-border-dark: #777777;
+  
+  --color-titlebar: #000000;
+  --color-titlebar-hover: #333333;
+  --color-sidebar: #1a1a1a;
+  --color-toolbar: #000000;
+  --color-content: #000000;
+  
+  /* Enhanced shadows for high contrast */
+  --shadow-sm: 0 2px 4px rgba(255, 255, 255, 0.1);
+  --shadow-md: 0 4px 8px rgba(255, 255, 255, 0.15);
+  --shadow-lg: 0 8px 16px rgba(255, 255, 255, 0.2);
+  --shadow-xl: 0 12px 24px rgba(255, 255, 255, 0.25);
+}
+
+/* Blue Theme */
+[data-theme="blue"] {
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-secondary: #06b6d4;
+  --color-accent: #8b5cf6;
+  
+  --color-bg-primary: #f8fafc;
+  --color-bg-secondary: #f1f5f9;
+  --color-bg-tertiary: #e2e8f0;
+  
+  --color-sidebar: #f1f5f9;
+  --color-toolbar: #f8fafc;
+  
+  /* Blue-tinted borders */
+  --color-border: #cbd5e1;
+  --color-border-light: #e2e8f0;
+  --color-border-dark: #94a3b8;
+}
+
+/* Green Theme */
+[data-theme="green"] {
+  --color-primary: #059669;
+  --color-primary-dark: #047857;
+  --color-secondary: #10b981;
+  --color-accent: #6366f1;
+  
+  --color-bg-primary: #f0fdf4;
+  --color-bg-secondary: #ecfdf5;
+  --color-bg-tertiary: #d1fae5;
+  
+  --color-sidebar: #ecfdf5;
+  --color-toolbar: #f0fdf4;
+  
+  /* Green-tinted borders */
+  --color-border: #bbf7d0;
+  --color-border-light: #d1fae5;
+  --color-border-dark: #86efac;
+}
+
+/* Purple Theme */
+[data-theme="purple"] {
+  --color-primary: #7c3aed;
+  --color-primary-dark: #6d28d9;
+  --color-secondary: #a855f7;
+  --color-accent: #ec4899;
+  
+  --color-bg-primary: #faf5ff;
+  --color-bg-secondary: #f3e8ff;
+  --color-bg-tertiary: #e9d5ff;
+  
+  --color-sidebar: #f3e8ff;
+  --color-toolbar: #faf5ff;
+  
+  /* Purple-tinted borders */
+  --color-border: #c4b5fd;
+  --color-border-light: #e9d5ff;
+  --color-border-dark: #a78bfa;
+}
+
+/* Auto Theme (follows system preference) */
+[data-theme="auto"] {
+  /* Light theme by default */
+  --color-primary: #667eea;
+  --color-primary-dark: #764ba2;
+  --color-secondary: #f093fb;
+  --color-accent: #4facfe;
+  
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f9fa;
+  --color-bg-tertiary: #e9ecef;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f5f5f5;
+  
+  --color-text-primary: #212529;
+  --color-text-secondary: #6c757d;
+  --color-text-tertiary: #adb5bd;
+  --color-text-inverse: #ffffff;
+  
+  --color-border: #dee2e6;
+  --color-border-light: #e9ecef;
+  --color-border-dark: #ced4da;
+  
+  --color-titlebar: #f8f9fa;
+  --color-titlebar-hover: #e9ecef;
+  --color-sidebar: #f8f9fa;
+  --color-toolbar: #ffffff;
+  --color-content: #ffffff;
+}
+
+/* Dark mode override for auto theme */
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"] {
+    --color-bg-primary: #1a1a1a;
+    --color-bg-secondary: #2d2d2d;
+    --color-bg-tertiary: #404040;
+    --color-surface: #2d2d2d;
+    --color-surface-hover: #404040;
+    
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #b3b3b3;
+    --color-text-tertiary: #808080;
+    --color-text-inverse: #000000;
+    
+    --color-border: #404040;
+    --color-border-light: #333333;
+    --color-border-dark: #555555;
+    
+    --color-titlebar: #2d2d2d;
+    --color-titlebar-hover: #404040;
+    --color-sidebar: #252526;
+    --color-toolbar: #2d2d2d;
+    --color-content: #1a1a1a;
+  }
+}
+
+/* Theme-specific component styles */
+
+/* Dark theme specific styles */
+[data-theme="dark"] .desktop-notification {
+  background: var(--color-surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .shortcut-feedback {
+  background: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .drag-drop-overlay {
+  background: rgba(102, 126, 234, 0.95);
+  backdrop-filter: blur(12px);
+}
+
+/* High contrast theme specific styles */
+[data-theme="high-contrast"] {
+  /* Force higher contrast borders */
+  --color-border: #888888;
+  --color-border-light: #777777;
+  --color-border-dark: #999999;
+}
+
+[data-theme="high-contrast"] .nav-item:hover {
+  background-color: #444444;
+}
+
+[data-theme="high-contrast"] .desktop-notification {
+  border: 2px solid var(--color-border);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="high-contrast"] .btn-primary {
+  background-color: #0066cc;
+  border: 2px solid #004499;
+}
+
+[data-theme="high-contrast"] .btn-secondary {
+  border: 2px solid var(--color-border);
+}
+
+[data-theme="high-contrast"] input,
+[data-theme="high-contrast"] textarea,
+[data-theme="high-contrast"] select {
+  border: 2px solid var(--color-border);
+}
+
+[data-theme="high-contrast"] input:focus,
+[data-theme="high-contrast"] textarea:focus,
+[data-theme="high-contrast"] select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.3);
+}
+
+/* Colored theme specific styles */
+[data-theme="blue"] .nav-item.active {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+[data-theme="green"] .nav-item.active {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+[data-theme="purple"] .nav-item.active {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* Theme transition animations */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.2s;
+  transition-timing-function: ease-in-out;
+}
+
+/* Disable transitions during theme changes for better performance */
+.theme-changing * {
+  transition: none !important;
+}
+
+/* Theme-specific scrollbars */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background-color: #555555;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #666666;
+}
+
+[data-theme="high-contrast"] ::-webkit-scrollbar-thumb {
+  background-color: #888888;
+  border: 1px solid #999999;
+}
+
+[data-theme="blue"] ::-webkit-scrollbar-thumb {
+  background-color: #94a3b8;
+}
+
+[data-theme="green"] ::-webkit-scrollbar-thumb {
+  background-color: #86efac;
+}
+
+[data-theme="purple"] ::-webkit-scrollbar-thumb {
+  background-color: #a78bfa;
+}
+
+/* Print styles (theme-independent) */
+@media print {
+  .desktop-app {
+    background: white !important;
+    color: black !important;
+  }
+  
+  .title-bar,
+  .sidebar,
+  .toolbar,
+  .desktop-notifications,
+  .drag-drop-overlay,
+  .shortcut-feedback {
+    display: none !important;
+  }
+  
+  .main-content {
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  
+  .tab-content {
+    position: static !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+/* Accessibility enhancements for themes */
+[data-theme] {
+  /* Ensure sufficient contrast ratios */
+  --focus-ring-color: var(--color-primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
+
+[data-theme="high-contrast"] {
+  --focus-ring-color: #ffffff;
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 3px;
+}
+
+/* Focus styles that respect theme */
+[data-theme] *:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+[data-theme] button:focus-visible,
+[data-theme] input:focus-visible,
+[data-theme] textarea:focus-visible,
+[data-theme] select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Reduced motion support across themes */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom CSS properties for theme switching */
+.theme-selector {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+}
+
+.theme-option {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-option:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+.theme-option.active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.theme-option.light {
+  background: linear-gradient(135deg, #ffffff 50%, #f8f9fa 50%);
+}
+
+.theme-option.dark {
+  background: linear-gradient(135deg, #1a1a1a 50%, #2d2d2d 50%);
+}
+
+.theme-option.blue {
+  background: linear-gradient(135deg, #2563eb 50%, #1d4ed8 50%);
+}
+
+.theme-option.green {
+  background: linear-gradient(135deg, #059669 50%, #047857 50%);
+}
+
+.theme-option.purple {
+  background: linear-gradient(135deg, #7c3aed 50%, #6d28d9 50%);
+}
+
+.theme-option.high-contrast {
+  background: linear-gradient(135deg, #000000 50%, #ffffff 50%);
+}
+
+.theme-option.auto {
+  background: conic-gradient(from 0deg, #667eea, #764ba2, #f093fb, #667eea);
+}
+
+/* Theme preview tooltip */
+.theme-option::after {
+  content: attr(data-theme-name);
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-text-primary);
+  color: var(--color-text-inverse);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.theme-option:hover::after {
+  opacity: 1;
+}

@@ -1,0 +1,25 @@
+# This directory contains build assets
+# Add your application icons and images here:
+
+# Required icons:
+# - icon.ico (Windows icon, 256x256)
+# - icon.icns (macOS icon bundle)  
+# - icon.png (Linux icon, 512x512)
+# - installer.ico (Windows installer icon)
+# - uninstaller.ico (Windows uninstaller icon)
+# - installer-header.ico (Windows installer header)
+
+# DMG assets (macOS):
+# - dmg-background.png (660x400)
+
+# NSIS assets (Windows):
+# - installer-sidebar.bmp (164x314)
+# - uninstaller-sidebar.bmp (164x314)
+# - loading.gif (installer loading animation)
+
+# WiX assets (Windows MSI):
+# - wix-background.jpg (493x312)
+# - wix-banner.jpg (493x58)
+
+# Desktop template:
+# - desktop.ejs (Linux desktop entry template)
